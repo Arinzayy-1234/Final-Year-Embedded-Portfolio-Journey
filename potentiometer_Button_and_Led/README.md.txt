@@ -1,8 +1,9 @@
 Arduino Potentiometer LED Dimmer
 This code demonstrates how to use a potentiometer (a variable resistor) to control the brightness of an LED. It's a fundamental project for understanding analog input and PWM (Pulse Width Modulation) output on an Arduino.
 
-The Code Explained 📄
-C++
+### The Code Explained 📄
+
+```cpp
 
 int ledPwmPin = 9; // Tells Arduino that pin 9 will control the LED
 int potPin = A0;   // Tells Arduino that analog pin A0 will read the potentiometer
