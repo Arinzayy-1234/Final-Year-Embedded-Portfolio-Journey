@@ -12,6 +12,7 @@ void loop() {
   int potValue = analogRead(potPin); 
   int pwmValue = potValue/4;
   analogWrite(ledPwmPin, pwmValue);
+  
 }
 
 
