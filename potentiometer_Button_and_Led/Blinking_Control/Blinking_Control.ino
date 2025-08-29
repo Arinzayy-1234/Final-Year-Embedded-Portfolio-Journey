@@ -17,5 +17,4 @@ void loop(){
   digitalWrite(ledPin, LOW);
   delay(potValue);
 
-  
 }
