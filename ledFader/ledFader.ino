@@ -17,7 +17,7 @@ void loop() {
     analogWrite(ledPin, i);
     delay(rampTime);
     Serial.println(i);
-    delay(200);
+    
   }
   //reduce LED brightness to the minimum
   for (int i = 255; i >= 0; i--)
@@ -25,6 +25,6 @@ void loop() {
     analogWrite(ledPin,i);
     delay(rampTime);
     Serial.println(i);
-    delay(200);
+    
   }
 }
