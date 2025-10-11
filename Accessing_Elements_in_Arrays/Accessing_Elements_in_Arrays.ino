@@ -16,6 +16,7 @@ void setup() {
 }   
 
 
+for (int i = 0 ; i < 6; i ++)
 {
   Serial.print(arrayOne[i]);
 }
