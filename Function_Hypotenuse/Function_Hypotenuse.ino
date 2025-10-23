@@ -6,7 +6,7 @@ void setup() {
 
 int readSerial()
   {
-    int i = Serial.parseInt(); // Takes the data in the serial buffer and it is then converted to an integer
+    int i = Serial.parseInt(); // Takes the data in the serial buffer, assigns it to a variable and it is then converted to an integer
 
     if (i < 1 || (i % 1 != 0) ) //checks if the received value is a valid integer
     {
