@@ -1,3 +1,5 @@
+RESOURCES 👇 to explain code
+1. Notion -> https://www.notion.so/SELF-MADE-Q-AND-A-25eaa6242c27802c9223f5659c5d3be0?source=copy_link#293aa6242c2780cab23ee3cb77ddc209
 
 
 **README - Arduino Shift Register LED Control**

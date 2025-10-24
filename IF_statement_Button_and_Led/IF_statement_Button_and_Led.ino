@@ -19,18 +19,21 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   int buttonState = digitalRead(buttonPin);
-  if ((millis() - lastPress) > debounceTime) // if the debouncing Time has passed (the time has passed 20mili seconds)
+  if ((millis() - lastPress) > debounceTime) // if the debouncing Time has passed (the time has passed 20mili seconds). answer's the question -> Has enough time passed since the *last valid event = presing or releasing of the button*?
   {
-    lastPress = millis();
-    if (buttonState == 0 && lastButtonState == 1) // Checkes if the button is pressed -> is like animating not pressing (lastButtonState  = 1) the button then pressing (buttonState = 0) it and
+    
+    if (buttonState == 0 && lastButtonState == 1) // Checkes if the button is pressed -> is like animating not pressing (lastButtonState  = 1) the button then pressing (buttonState = 0) it 
+ // A valid PRESS transition is detected
     {
       toggleState =! toggleState;
       digitalWrite(ledPin, toggleState);
       lastButtonState = buttonState;
+      lastPress = millis(); // <--- CORRECT: Now that the press is confirmed, we can put the time of lastPress as right now (at the same time as the event (pressing of the button) took place)
     }
     if (buttonState == 1 && lastButtonState == 0) //  Checkes if the button is not pressed -> is like animating pressing (lastButtonState = 0) the button then not pressing the button (buttonState = 1)
     {
       lastButtonState = buttonState;
+      lastPress = millis(); // <--- CORRECT: Now that the release is confirmed, we can put the time of lastPress as right now (at the same time as the event (releasing of the button) took place)
     }
   }
 
