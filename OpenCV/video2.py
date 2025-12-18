@@ -7,10 +7,10 @@ while True:
     if sucess:
         cv2.imshow("Image", frame) 
     print(frame.shape)
-    cv2.waitKey(0) 
+    if cv2.waitKey(0) & 0xFF == ord('q'):
+        break
 
-'''
 cap.release() #Shuts down the camera 
 cv2.destroyAllWindows() # closes the GUI window
-'''
+
 
