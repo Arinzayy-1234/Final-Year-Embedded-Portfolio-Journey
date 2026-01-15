@@ -1,5 +1,5 @@
 import cv2 
-from raw_cv2 import my_cornerRect 
+from raw_Cv2 import my_cornerRect 
 
 cap = cv2.VideoCapture(0) 
 

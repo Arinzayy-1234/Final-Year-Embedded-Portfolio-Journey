@@ -1,6 +1,11 @@
 
 import cv2
 
+"""
+About raw_cv2.py
+This handles Computer Vision shapes
+"""
+
 def my_cornerRect(frame, bbox, l=30, t=5,rect_t = 1, corner_color=(255,0,255), rect_color=(0,255,0)): 
     """
     Draws a high-tech corner-only rectangle.
