@@ -25,6 +25,7 @@ class RawHandDetector:
         )
         self.draw_utils = mp.solutions.drawing_utils # Shortcut to drawing_utils.py
         self.tip_ids = [4,8,12,16,20] # Thumb,Index,Middle,Ring,Pinky
+        self.hand_data = None
 
 
     def find_hands(self, frame, draw=True):
