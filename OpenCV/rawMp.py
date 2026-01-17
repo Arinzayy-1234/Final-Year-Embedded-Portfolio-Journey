@@ -40,22 +40,26 @@ class RawHandDetector:
                 if draw:
                     self.draw_utils.draw_landmarks(frame, hand_object, self.hand_engine.HAND_CONNECTIONS)
                     
-        return frame
+        return frame # if this was frame_rgb it will return rgb frame and when it is displayed it will give wierd cool colors 😂
         
-    def find_position(self, frame, hand_index=0, draw=True):
+    def find_position(self, frame, hand_indexes=[0], draw=True):
         
         landmark_list = []
 
         if self.hand_data.multi_hand_landmarks:
+            for hand_index in hand_indexes:
+                if hand_index < len(self.hand_data.multi_hand_landmarks):
+                    hand_object = self.hand_data.multi_hand_landmarks[hand_index]
+                    for id, landmark_object in enumerate(hand_object.landmark):
+                        
+                        h, w, c = frame.shape
 
-            hand_object = self.hand_data.multi_hand_landmarks[hand_index]
-            for id, landmark_object in enumerate(hand_object.landmark):
-                
-                w, h, c = frame.shape
+                        x_pixels , y_pixels = int(landmark_object.x * w) , int (landmark_object.y * h)
 
-                x_pixels , y_pixels = int(landmark_object.x * w) , int (landmark_object.y * h)
-
-                landmark_list.append([id, x_pixels, y_pixels])
+                        landmark_list.append([id, x_pixels, y_pixels])
+        
+                        if draw:
+                            cv2.circle(frame, (x_pixels, y_pixels), 5,  (255,0,255), cv2.FILLED)
 
         return landmark_list
 

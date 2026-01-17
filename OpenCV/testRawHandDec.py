@@ -6,15 +6,15 @@ cap = cv2.VideoCapture(0)
 arinze_hand = RawHandDetector()
 
 while True:
-    sucess, frame = cap.read() 
-    if sucess:
-        frame = arinze_hand.find_hands(frame)
+    success, frame = cap.read() 
+    if success:
+        frame = arinze_hand.find_hands(frame, draw=True)
+        print(arinze_hand.find_position(frame,  hand_indexes= [0,], draw=True)) 
         cv2.imshow("Image", frame) 
-        print(arinze_hand.find_position(frame)) 
 
     #stops the loop is 'q' is pressed
     # cv2.waitKey(1) waits 1ms and returns the key pressed
-    if cv2.waitKey(0) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release() #Shuts down the camera 
