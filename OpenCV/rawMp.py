@@ -47,6 +47,9 @@ class RawHandDetector:
         
         landmark_list = []
 
+        if self.hand_data is None:
+            return landmark_list
+        
         if self.hand_data.multi_hand_landmarks:
             for hand_index in hand_indexes:
                 if hand_index < len(self.hand_data.multi_hand_landmarks):
@@ -61,6 +64,7 @@ class RawHandDetector:
         
                         if draw:
                             cv2.circle(frame, (x_pixels, y_pixels), 5,  (255,0,255), cv2.FILLED)
+                            
 
         return landmark_list
 
