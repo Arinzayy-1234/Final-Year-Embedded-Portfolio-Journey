@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>InMoov Logic Explorer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f1b; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 40px; }
+        .container { width: 100%; max-width: 800px; }
+        .box { background: #1a1a2e; padding: 25px; border-radius: 15px; border: 1px solid #4ecca3; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { color: #4ecca3; margin-bottom: 30px; font-weight: 300; letter-spacing: 2px; }
+        input[type=range] { width: 100%; cursor: pointer; height: 10px; border-radius: 5px; background: #16213e; outline: none; -webkit-appearance: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #4ecca3; cursor: pointer; }
+        .label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+        .value { color: #4ecca3; font-weight: bold; font-family: 'Courier New', Courier, monospace; font-size: 1.2em; }
+        .progress-container { width: 100%; background: #16213e; height: 20px; border-radius: 10px; margin-top: 10px; overflow: hidden; }
+        .progress-bar { height: 100%; transition: width 0.1s ease-out; }
+        #normBar { background: linear-gradient(90deg, #4ecca3, #45b293); }
+        #servoBar { background: linear-gradient(90deg, #e94560, #c33a52); }
+        p { font-size: 0.85em; color: #9494a3; margin-top: 15px; line-height: 1.5; }
+        .step-num { background: #4ecca3; color: #0f0f1b; padding: 2px 8px; border-radius: 5px; font-weight: bold; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <h1>InMoov Logic Presentation Tool</h1>
+    <div class="container">
+        
+        <div class="box">
+            <div class="label"><span><span class="step-num">1</span> Raw Camera Ratio (Tip-to-Wrist / Palm)</span> <span class="value" id="rawVal">0.40</span></div>
+            <input type="range" id="raw" min="0.4" max="3.0" step="0.01" value="0.4">
+            <p>This is the direct measurement from MediaPipe. It changes based on how much you curl your finger. Your physical limits are <b>0.4 (closed)</b> and <b>3.0 (open)</b>.</p>
+        </div>
+
+        <div class="box">
+            <div class="label"><span><span class="step-num">2</span> Normalized Value (Universal Scale)</span> <span class="value" id="normVal">0.00</span></div>
+            <div class="progress-container"><div id="normBar" class="progress-bar" style="width:0%;"></div></div>
+            <p>We subtract the closed limit and divide by the range. This creates a "Universal Language" of <b>0.0 to 1.0</b>. This works for any hand size!</p>
+        </div>
+
+        <div class="box">
+            <div class="label"><span><span class="step-num">3</span> Physical Servo Angle</span> <span class="value" id="servoVal">20.0°</span></div>
+            <div class="progress-container"><div id="servoBar" class="progress-bar" style="width:0%;"></div></div>
+            <p>Finally, we map the 0.0-1.0 scale to your servo's physical travel (<b>20° to 160°</b>). This is what actually moves the InMoov arm.</p>
+        </div>
+
+    </div>
+
+    <script>
+        const rawInput = document.getElementById('raw');
+        const rawVal = document.getElementById('rawVal');
+        const normVal = document.getElementById('normVal');
+        const normBar = document.getElementById('normBar');
+        const servoVal = document.getElementById('servoVal');
+        const servoBar = document.getElementById('servoBar');
+
+        rawInput.oninput = function() {
+            let v = parseFloat(this.value);
+            rawVal.innerText = v.toFixed(2);
+            
+            // Normalization logic: (current - close) / (open - close)
+            let norm = (v - 0.4) / (3.0 - 0.4);
+            norm = Math.max(0, Math.min(1, norm));
+            
+            normVal.innerText = norm.toFixed(2);
+            normBar.style.width = (norm * 100) + "%";
+            
+            // Servo Mapping: min + (norm * range)
+            let servo = 20 + (norm * 140);
+            
+            servoVal.innerText = servo.toFixed(1) + "°";
+            servoBar.style.width = ((servo - 20) / 140 * 100) + "%";
+        }
+    </script>
+</body>
+</html>

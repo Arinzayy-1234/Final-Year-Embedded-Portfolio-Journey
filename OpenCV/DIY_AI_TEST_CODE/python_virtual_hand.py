@@ -1,39 +1,10 @@
-"""
-virtual_hand.py
-===============
-A pygame simulator that draws a 2D robotic hand and animates
-each finger based on the servo angles coming from STATICMODE.py.
-
-HOW TO USE:
------------
-1.  Install pygame:   pip install pygame
-2.  Put this file in the SAME folder as STATICMODE.py
-3.  In STATICMODE.py, replace the print line:
-        print(f'TRACKING: {servo_commands}', end='\r')
-    with:
-        send_to_virtual_hand(servo_commands)
-4.  Import this at the top of STATICMODE.py:
-        from virtual_hand import VirtualHand, send_to_virtual_hand, init_virtual_hand
-
-5.  Add these three lines near the top of STATICMODE.py (after imports):
-        virtual_hand = init_virtual_hand()
-
-6.  Run STATICMODE.py as normal. The pygame window opens automatically.
-
-CONTROLS (in the pygame window):
----------------------------------
-  Sliders at bottom  →  manually drag each finger for testing WITHOUT webcam
-  LIVE mode          →  servo angles come from your real hand via camera
-  ESC                →  close simulator
-"""
-
 import pygame
 import sys
 import math
 import threading
 
 # ─────────────────────────────────────────────
-#  CONFIGURATION  —  edit these to match your servo tuning
+#  CONFIGURATION  —  match your physical servo tuning
 # ─────────────────────────────────────────────
 
 SERVO_CONFIG = {
@@ -42,12 +13,13 @@ SERVO_CONFIG = {
     "Middle": {"min": 20, "max": 160},
     "Ring":   {"min": 25, "max": 155},
     "Pinky":  {"min": 25, "max": 145},
+    "Wrist":  {"min": 0,  "max": 180}, # Rotation axis
 }
 
 FINGER_ORDER = ["Thumb", "Index", "Middle", "Ring", "Pinky"]
 
 # ─────────────────────────────────────────────
-#  COLOURS  (R, G, B)
+#  COLOURS
 # ─────────────────────────────────────────────
 BG          = (15,  15,  25)
 PANEL_BG    = (25,  25,  40)
@@ -70,189 +42,160 @@ RED         = (255,  80,  80)
 WIN_W, WIN_H = 900, 680
 FPS          = 30
 
-# ─────────────────────────────────────────────
-#  FINGER GEOMETRY  (all measurements in pixels)
-# ─────────────────────────────────────────────
-# Each finger has 3 bone segments: proximal, middle, distal
-# The angle stored in servo_angles drives how much each finger curls.
-# We map the servo angle to a "curl angle" for the finger drawing.
+# ═══════════════════════════════════════════════════════════
+# 🎯 HAND ALIGNMENT TUNING (Adjust to match your camera view)
+# ═══════════════════════════════════════════════════════════
+PALM_CENTER_X = 450   # ⬅️ Horizontal center of virtual hand (0-900)
+PALM_CENTER_Y = 310   # ⬇️ Vertical center of virtual hand (0-680)
+HAND_SCALE    = 1.0   # 🔍 Zoom: 0.8=smaller, 1.0=normal, 1.2=larger
+MIRROR_HAND   = False # 🔄 Set True if left/right appear flipped
+# ═══════════════════════════════════════════════════════════
 
+# ─────────────────────────────────────────────
+#  GEOMETRY
+# ─────────────────────────────────────────────
 FINGER_SEGMENTS = {
-    #         proximal  middle  distal
-    "Thumb":  [38,      28,     22],
-    "Index":  [52,      38,     26],
-    "Middle": [56,      40,     28],
-    "Ring":   [50,      36,     26],
-    "Pinky":  [40,      28,     20],
+    "Thumb":  [38, 28, 22],
+    "Index":  [52, 38, 26],
+    "Middle": [56, 40, 28],
+    "Ring":   [50, 36, 26],
+    "Pinky":  [40, 28, 20],
 }
 
-# Palm anchor points (where each finger attaches to the palm)
-# These are relative to the palm centre drawn on screen
 PALM_W, PALM_H = 130, 110
 FINGER_ANCHORS = {
-    "Thumb":  (-62,  30),   # thumb sticks out to the side
+    "Thumb":  (-62,  30),
     "Index":  (-42, -55),
     "Middle": (-12, -62),
     "Ring":   ( 20, -58),
     "Pinky":  ( 52, -48),
 }
 
-# Base angle each finger points in (degrees, 0=right, 90=up)
 FINGER_BASE_ANGLES = {
-    "Thumb":  145,   # points up-left
+    "Thumb":  145,
     "Index":  100,
     "Middle":  95,
     "Ring":    90,
     "Pinky":   82,
 }
 
-
 # ─────────────────────────────────────────────
-#  SHARED STATE  (thread-safe via lock)
+#  SHARED STATE
 # ─────────────────────────────────────────────
 _lock          = threading.Lock()
-_servo_angles  = {f: SERVO_CONFIG[f]["min"] for f in FINGER_ORDER}   # start fully closed
-_mode          = "MANUAL"    # "MANUAL" or "LIVE"
-
+# Initialize standard servos + virtual spread axes for cartoonish movement
+_servo_angles  = {f: SERVO_CONFIG[f]["min"] for f in SERVO_CONFIG}
+_servo_angles.update({f"{f}_Spread": 0.0 for f in FINGER_ORDER}) 
+_mode          = "MANUAL"
 
 def send_to_virtual_hand(servo_commands: dict):
-    """
-    Call this from STATICMODE.py instead of printing.
-    servo_commands = {"Thumb": 90.0, "Index": 120.5, ...}
-    """
     global _mode
     with _lock:
-        for finger, angle in servo_commands.items():
-            if finger in _servo_angles:
-                _servo_angles[finger] = float(angle)
+        for component, angle in servo_commands.items():
+            if component in _servo_angles:
+                _servo_angles[component] = float(angle)
         _mode = "LIVE"
 
-
 def init_virtual_hand():
-    """Call once at the start of STATICMODE.py to launch the pygame window."""
     t = threading.Thread(target=_run_pygame, daemon=True)
     t.start()
     return t
-
 
 # ─────────────────────────────────────────────
 #  MATHS HELPERS
 # ─────────────────────────────────────────────
 
+def rotate_point(point, angle_deg, center):
+    """Rotates a point (x, y) around a center by angle_deg."""
+    angle_rad = math.radians(angle_deg)
+    px, py = point
+    cx, cy = center
+    qx = cx + math.cos(angle_rad) * (px - cx) - math.sin(angle_rad) * (py - cy)
+    qy = cy + math.sin(angle_rad) * (px - cx) + math.cos(angle_rad) * (py - cy)
+    return int(qx), int(qy)
+
 def servo_to_curl(angle, finger_name):
-    """
-    Converts a servo angle (e.g. 20–160°) to a curl fraction (0.0–1.0).
-    0.0 = fully open, 1.0 = fully closed.
-    """
     cfg   = SERVO_CONFIG[finger_name]
     frac  = (angle - cfg["min"]) / max(cfg["max"] - cfg["min"], 1)
     return max(0.0, min(1.0, frac))
 
-
-def draw_finger(surface, anchor_x, anchor_y, base_angle_deg,
-                segments, curl, colour_bone, colour_joint, colour_tip):
-    """
-    Draws a finger made of 3 bone segments starting from (anchor_x, anchor_y).
-
-    anchor_x/y  : where the finger attaches to the palm
-    base_angle  : direction the finger initially points (degrees, pygame convention)
-    segments    : list of 3 pixel lengths [proximal, middle, distal]
-    curl        : 0.0 (straight) → 1.0 (fully curled)
-
-    FIX: Each joint now bends BEFORE its segment is drawn, so all 3 joints
-    (including the base knuckle) contribute to the curl animation.
-
-    JOINT BEND WEIGHTS — how much each joint contributes to the total curl.
-    Real fingers don't bend all joints equally:
-      - MCP (base knuckle)  : bends the most  → weight 0.5  (50% of curl)
-      - PIP (middle joint)  : bends a lot     → weight 0.35 (35% of curl)
-      - DIP (tip joint)     : bends a little  → weight 0.15 (15% of curl)
-    These must add up to 1.0.
-    """
-    # ── CHANGED: per-joint bend weights (must sum to 1.0) ──────────────────
-    JOINT_WEIGHTS = [0.50, 0.35, 0.15]   # MCP, PIP, DIP
-    MAX_TOTAL_BEND = 240   # total degrees of bend across all 3 joints at curl=1.0
-    # ───────────────────────────────────────────────────────────────────────
-
-    x, y  = float(anchor_x), float(anchor_y)
-    angle = base_angle_deg   # current running angle (starts straight)
-
-    joint_positions = [(int(x), int(y))]
+def draw_finger(surface, anchor, base_angle_deg, wrist_rot, spread,
+                segments, curl, center):
+    JOINT_WEIGHTS = [0.50, 0.35, 0.15]
+    MAX_TOTAL_BEND = 240
+    
+    # Initial rotated anchor
+    x, y = anchor
+    # Base angle is affected by wrist rotation AND virtual spread (side-to-side)
+    angle = base_angle_deg + wrist_rot + spread
+    
+    joint_positions = [(x, y)]
 
     for i, seg_len in enumerate(segments):
-
-        # ── CHANGED: bend THIS joint BEFORE drawing its segment ────────────
-        # Old code subtracted the bend AFTER drawing, so joint 0 never bent.
-        # Now we subtract FIRST so every joint (including the base) bends.
         angle -= curl * JOINT_WEIGHTS[i] * MAX_TOTAL_BEND
-        # ───────────────────────────────────────────────────────────────────
-
         rad   = math.radians(angle)
         x2    = x + seg_len * math.cos(rad)
-        y2    = y - seg_len * math.sin(rad)   # pygame y is flipped
-
-        # ── CHANGED: bone thickness tapers toward the tip (more realistic) ─
-        thickness = max(3, 7 - i * 2)   # proximal=7, middle=5, distal=3
-        # ───────────────────────────────────────────────────────────────────
-        pygame.draw.line(surface, colour_bone,
-                         (int(x), int(y)), (int(x2), int(y2)), thickness)
+        y2    = y - seg_len * math.sin(rad)
+        
+        thickness = max(3, 7 - i * 2)
+        pygame.draw.line(surface, BONE_COL, (x, y), (int(x2), int(y2)), thickness)
 
         joint_positions.append((int(x2), int(y2)))
         x, y = x2, y2
 
-    # Draw joints — ── CHANGED: size also tapers toward tip ─────────────────
     for i, pos in enumerate(joint_positions):
-        r = [8, 6, 5, 4][i]   # base knuckle biggest, tip smallest
-        pygame.draw.circle(surface, colour_joint, pos, r)
-    # ─────────────────────────────────────────────────────────────────────────
+        r = [8, 6, 5, 4][i]
+        pygame.draw.circle(surface, JOINT_COL, pos, r)
+    
+    tip_c = GREEN if curl < 0.33 else (ORANGE if curl < 0.66 else RED)
+    pygame.draw.circle(surface, tip_c, (int(x), int(y)), 6)
 
-    # Draw fingertip
-    pygame.draw.circle(surface, colour_tip, (int(x), int(y)), 6)
-
-
-def draw_palm(surface, cx, cy):
-    """Draws the palm rectangle centred at (cx, cy)."""
-    rect = pygame.Rect(cx - PALM_W//2, cy - PALM_H//2, PALM_W, PALM_H)
-    pygame.draw.rect(surface, PALM_COL, rect, border_radius=18)
-    pygame.draw.rect(surface, BONE_COL, rect, width=2, border_radius=18)
+def draw_palm(surface, cx, cy, rotation):
+    # Create a surface for the palm to rotate it easily
+    palm_surf = pygame.Surface((PALM_W + 40, PALM_H + 60), pygame.SRCALPHA)
+    rect = pygame.Rect(20, 20, PALM_W, PALM_H)
+    pygame.draw.rect(palm_surf, PALM_COL, rect, border_radius=18)
+    pygame.draw.rect(palm_surf, BONE_COL, rect, width=2, border_radius=18)
     # Wrist bump
-    pygame.draw.ellipse(surface, PALM_COL,
-                        (cx - 35, cy + PALM_H//2 - 10, 70, 30))
-
+    pygame.draw.ellipse(palm_surf, PALM_COL, (20 + PALM_W//2 - 35, 20 + PALM_H - 10, 70, 30))
+    
+    rotated_palm = pygame.transform.rotate(palm_surf, rotation)
+    new_rect = rotated_palm.get_rect(center=(cx, cy))
+    surface.blit(rotated_palm, new_rect.topleft)
 
 # ─────────────────────────────────────────────
-#  SLIDER WIDGET
+#  WIDGETS
 # ─────────────────────────────────────────────
 
 class Slider:
-    def __init__(self, x, y, w, finger_name):
+    def __init__(self, x, y, w, name):
         self.rect  = pygame.Rect(x, y, w, 14)
-        self.name  = finger_name
+        self.name  = name
         self.dragging = False
 
     def draw(self, surface, font_sm, current_angle):
-        cfg   = SERVO_CONFIG[self.name]
+        # Handle regular servos vs Spread (virtual)
+        if "_Spread" in self.name:
+            cfg = {"min": -30, "max": 30}
+        else:
+            cfg = SERVO_CONFIG[self.name]
+            
         frac  = (current_angle - cfg["min"]) / max(cfg["max"] - cfg["min"], 1)
         frac  = max(0.0, min(1.0, frac))
         knob_x = int(self.rect.x + frac * self.rect.w)
-
-        # Track
         pygame.draw.rect(surface, SLIDER_BG, self.rect, border_radius=7)
-        # Fill
-        fill = pygame.Rect(self.rect.x, self.rect.y,
-                           int(frac * self.rect.w), self.rect.h)
+        fill = pygame.Rect(self.rect.x, self.rect.y, int(frac * self.rect.w), self.rect.h)
         pygame.draw.rect(surface, SLIDER_FG, fill, border_radius=7)
-        # Knob
-        pygame.draw.circle(surface, (255,255,255),
-                           (knob_x, self.rect.centery), 10)
-
-        # Label
-        lbl = font_sm.render(f"{self.name}: {current_angle:.1f}°", True, TEXT_COL)
+        pygame.draw.circle(surface, (255,255,255), (knob_x, self.rect.centery), 10)
+        lbl = font_sm.render(f"{self.name}: {current_angle:.1f}", True, TEXT_COL)
         surface.blit(lbl, (self.rect.x, self.rect.y - 18))
 
     def handle_event(self, event):
-        """Returns new angle if dragged, else None."""
-        cfg = SERVO_CONFIG[self.name]
+        if "_Spread" in self.name:
+            cfg = {"min": -30, "max": 30}
+        else:
+            cfg = SERVO_CONFIG[self.name]
+            
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.rect.inflate(0, 20).collidepoint(event.pos):
                 self.dragging = True
@@ -264,170 +207,85 @@ class Slider:
             return cfg["min"] + frac * (cfg["max"] - cfg["min"])
         return None
 
-
 # ─────────────────────────────────────────────
-#  MAIN PYGAME LOOP
+#  MAIN LOOP
 # ─────────────────────────────────────────────
 
 def _run_pygame():
     global _mode, _servo_angles
-
     pygame.init()
-    screen  = pygame.display.set_mode((WIN_W, WIN_H))
-    pygame.display.set_caption("InMoov Virtual Hand — Simulator")
-    clock   = pygame.time.Clock()
-
+    pygame.font.init()  # ⚡ Explicitly init font subsystem for threaded safety
+    screen = pygame.display.set_mode((WIN_W, WIN_H))
+    pygame.display.set_caption("InMoov Virtual Hand - Visual Portfolio")
+    clock = pygame.time.Clock()
     font_lg = pygame.font.SysFont("consolas", 22, bold=True)
     font_md = pygame.font.SysFont("consolas", 16)
     font_sm = pygame.font.SysFont("consolas", 13)
 
-    # Palm centre position on screen
-    PALM_CX, PALM_CY = 450, 310
+    # Use tunable palm center coordinates
+    PALM_CX, PALM_CY = PALM_CENTER_X, PALM_CENTER_Y
+    
+    # Sliders for ALL components including Wrist and Spreads
+    components = FINGER_ORDER + ["Wrist"] + [f"{f}_Spread" for f in FINGER_ORDER]
+    sliders = {}
+    
+    # Arrange sliders in rows for better space management
+    for i, name in enumerate(components):
+        row = i // 6
+        col = i % 6
+        gap = WIN_W // 7
+        sliders[name] = Slider(gap * (col + 1) - 60, WIN_H - 120 + (row * 40), 100, name)
 
-    # Build sliders — one per finger, across the bottom panel
-    slider_y  = WIN_H - 80
-    gap       = WIN_W // (len(FINGER_ORDER) + 1)
-    sliders   = {}
-    for i, name in enumerate(FINGER_ORDER):
-        sx = gap * (i + 1) - 70
-        sliders[name] = Slider(sx, slider_y, 140, name)
-
-    # Local copy of angles for slider use (manual mode)
-    manual_angles = {f: SERVO_CONFIG[f]["min"] for f in FINGER_ORDER}
-
-    running = True
-    while running:
+    while True:
         clock.tick(FPS)
-
-        # ── Events ──
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
+            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-                if event.key == pygame.K_m:   # toggle manual/live
-                    _mode = "MANUAL" if _mode == "LIVE" else "LIVE"
-
-            # Slider dragging only in MANUAL mode
+                if event.key == pygame.K_m: _mode = "MANUAL" if _mode == "LIVE" else "LIVE"
+                if event.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
+            
             if _mode == "MANUAL":
                 for name, slider in sliders.items():
-                    result = slider.handle_event(event)
-                    if result is not None:
-                        manual_angles[name] = result
-                        with _lock:
-                            _servo_angles[name] = result
+                    res = slider.handle_event(event)
+                    if res is not None:
+                        with _lock: _servo_angles[name] = res
 
-        # ── Get current angles ──
-        with _lock:
-            display_angles = dict(_servo_angles)
-
-        if _mode == "MANUAL":
-            display_angles = dict(manual_angles)
-
-        # ─────────── DRAW ───────────
-
+        with _lock: angles = dict(_servo_angles)
+        
         screen.fill(BG)
-
-        # ── Top bar ──
+        
+        # UI
         pygame.draw.rect(screen, PANEL_BG, (0, 0, WIN_W, 52))
-        title = font_lg.render("InMoov Virtual Hand Simulator", True, ACCENT)
-        screen.blit(title, (20, 14))
+        screen.blit(font_lg.render("InMoov Virtual Portfolio - Hand Simulator", True, ACCENT), (20, 14))
+        mode_col = GREEN if _mode == "LIVE" else ORANGE
+        screen.blit(font_md.render(f"MODE: {_mode}", True, mode_col), (WIN_W - 150, 17))
+        
+        pygame.draw.rect(screen, PANEL_BG, (0, WIN_H - 145, WIN_W, 145))
+        for s in sliders.values(): s.draw(screen, font_sm, angles[s.name])
 
-        mode_col  = GREEN if _mode == "LIVE" else ORANGE
-        mode_surf = font_md.render(f"[M] MODE: {_mode}", True, mode_col)
-        screen.blit(mode_surf, (WIN_W - 200, 17))
-
-        # ── Bottom panel (sliders) ──
-        pygame.draw.rect(screen, PANEL_BG, (0, WIN_H - 115, WIN_W, 115))
-        hint = font_sm.render(
-            "MANUAL: drag sliders to test fingers   |   LIVE: angles come from your webcam   |   [M] toggle   |   ESC quit",
-            True, LABEL_COL)
-        screen.blit(hint, (20, WIN_H - 115 + 8))
-
-        for name, slider in sliders.items():
-            slider.draw(screen, font_sm, display_angles[name])
-
-        # ── Palm ──
-        draw_palm(screen, PALM_CX, PALM_CY)
-
-        # ── Fingers ──
+        # Rotation Logic
+        wrist_rot = angles["Wrist"] - 90 
+        
+        # Draw Palm (with optional mirroring for camera alignment)
+        display_cx = PALM_CX if not MIRROR_HAND else (WIN_W - PALM_CX)
+        draw_palm(screen, display_cx, PALM_CY, wrist_rot)
+        
+        # Draw Fingers with rotation and spread
         for name in FINGER_ORDER:
-            angle    = display_angles[name]
-            curl     = servo_to_curl(angle, name)
-            ax, ay   = FINGER_ANCHORS[name]
-            base_ang = FINGER_BASE_ANGLES[name]
-            segs     = FINGER_SEGMENTS[name]
-
-            # Colour tip based on curl amount
-            if curl < 0.33:
-                tip_c = GREEN
-            elif curl < 0.66:
-                tip_c = ORANGE
-            else:
-                tip_c = RED
-
-            draw_finger(
-                screen,
-                PALM_CX + ax, PALM_CY + ay,
-                base_ang, segs, curl,
-                BONE_COL, JOINT_COL, tip_c
-            )
-
-        # ── Side panel: live readout ──
-        panel_x = 20
-        pygame.draw.rect(screen, PANEL_BG,
-                         (panel_x - 8, 60, 200, 240), border_radius=10)
-        hdr = font_md.render("SERVO ANGLES", True, ACCENT)
-        screen.blit(hdr, (panel_x, 70))
-
-        for i, name in enumerate(FINGER_ORDER):
-            angle = display_angles[name]
-            curl  = servo_to_curl(angle, name)
-            col   = GREEN if curl < 0.33 else (ORANGE if curl < 0.66 else RED)
-            bar_w = int(curl * 120)
-            by    = 100 + i * 40
-            # bar background
-            pygame.draw.rect(screen, SLIDER_BG, (panel_x, by + 18, 120, 8), border_radius=4)
-            # bar fill
-            pygame.draw.rect(screen, col, (panel_x, by + 18, bar_w, 8), border_radius=4)
-            lbl = font_sm.render(f"{name:<6}  {angle:>6.1f}°", True, TEXT_COL)
-            screen.blit(lbl, (panel_x, by))
-
-        # ── Instruction box ──
-        ibox_y = 320
-        pygame.draw.rect(screen, PANEL_BG,
-                         (panel_x - 8, ibox_y, 200, 180), border_radius=10)
-        lines = [
-            "HOW TO USE:",
-            "",
-            "1. Run STATICMODE.py",
-            "2. Press O → open hand",
-            "3. Press C → close hand",
-            "4. Press S → lock calibra",
-            "5. Hand controls robot!",
-            "",
-            "Green  = open",
-            "Orange = halfway",
-            "Red    = closed",
-        ]
-        for j, line in enumerate(lines):
-            c   = ACCENT if j == 0 else LABEL_COL
-            txt = font_sm.render(line, True, c)
-            screen.blit(txt, (panel_x, ibox_y + 10 + j * 15))
+            curl = servo_to_curl(angles[name], name)
+            spread = angles.get(f"{name}_Spread", 0.0)
+            
+            # Apply scale to anchor offsets for size tuning
+            anchor_offset = (FINGER_ANCHORS[name][0] * HAND_SCALE, FINGER_ANCHORS[name][1] * HAND_SCALE)
+            orig_anchor = (PALM_CX + anchor_offset[0], PALM_CY + anchor_offset[1])
+            rot_anchor = rotate_point(orig_anchor, -wrist_rot, (PALM_CX, PALM_CY))
+            
+            draw_finger(screen, rot_anchor, FINGER_BASE_ANGLES[name], -wrist_rot, spread,
+                        FINGER_SEGMENTS[name], curl, (PALM_CX, PALM_CY))
 
         pygame.display.flip()
-
-    pygame.quit()
-
-
-# ─────────────────────────────────────────────
-#  STANDALONE MODE
-#  Run this file directly to test sliders alone
-#  without STATICMODE.py or a webcam
-# ─────────────────────────────────────────────
+        # ⚡ Small wait helps sync with main thread and reduces CPU usage
+        pygame.time.wait(1)
 
 if __name__ == "__main__":
-    print("Running in STANDALONE mode — use sliders to test the hand.")
-    print("To connect to your webcam, import this from STATICMODE.py")
     _run_pygame()

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>InMoov Normalization Explorer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; padding: 40px; }
+        .container { max-width: 800px; margin: auto; }
+        .box { background: #1e293b; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #334155; }
+        h1 { color: #38bdf8; text-align: center; margin-bottom: 40px; }
+        input[type=range] { width: 100%; height: 8px; border-radius: 5px; background: #334155; outline: none; transition: opacity .2s; margin: 20px 0; }
+        .label { display: flex; justify-content: space-between; font-weight: 600; font-size: 1.1rem; }
+        .value { color: #38bdf8; font-family: monospace; }
+        .bar-container { background: #334155; height: 24px; border-radius: 12px; margin-top: 10px; overflow: hidden; }
+        .bar { height: 100%; transition: width 0.1s ease-out; }
+        #normBar { background: linear-gradient(90deg, #38bdf8, #818cf8); }
+        #servoBar { background: linear-gradient(90deg, #f43f5e, #fb7185); }
+        p { color: #94a3b8; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>InMoov Physical to Digital Mapping</h1>
+        
+        <div class="box">
+            <div class="label"><span>1. Camera Ratio (Raw Input)</span> <span class="value" id="rawVal">0.40</span></div>
+            <input type="range" id="raw" min="0.4" max="3.0" step="0.01" value="0.4">
+            <p>This represents the <i>Tip-to-Wrist / Base-to-Wrist</i> ratio detected by MediaPipe. 0.4 is your calibrated "Closed" and 3.0 is your "Open".</p>
+        </div>
+
+        <div class="box">
+            <div class="label"><span>2. Normalized Value (0.0 to 1.0)</span> <span class="value" id="normVal">0.00</span></div>
+            <div class="bar-container"><div id="normBar" class="bar" style="width:0%"></div></div>
+            <p>Normalization makes your hand size irrelevant. Whether you have big or small hands, 0.0 is always closed and 1.0 is always open.</p>
+        </div>
+
+        <div class="box">
+            <div class="label"><span>3. Servo Angle (20° to 160°)</span> <span class="value" id="servoVal">20.0°</span></div>
+            <div class="bar-container"><div id="servoBar" class="bar" style="width:0%"></div></div>
+            <p>This is the final signal sent to the Arduino. It scales the 0-1 percentage to the physical mechanical limits of your InMoov servos.</p>
+        </div>
+    </div>
+
+    <script>
+        const rawSlider = document.getElementById('raw');
+        const rawValDisplay = document.getElementById('rawVal');
+        const normValDisplay = document.getElementById('normVal');
+        const servoValDisplay = document.getElementById('servoVal');
+        const normBar = document.getElementById('normBar');
+        const servoBar = document.getElementById('servoBar');
+
+        rawSlider.oninput = function() {
+            let raw = parseFloat(this.value);
+            rawValDisplay.innerText = raw.toFixed(2);
+            
+            // Formula: (Current - Min) / (Max - Min)
+            let norm = (raw - 0.4) / (3.0 - 0.4);
+            norm = Math.max(0, Math.min(1, norm));
+            
+            normValDisplay.innerText = norm.toFixed(2);
+            normBar.style.width = (norm * 100) + "%";
+            
+            // Mapping to Servo: Min + (Norm * Range)
+            let servo = 20 + (norm * (160 - 20));
+            servoValDisplay.innerText = servo.toFixed(1) + "°";
+            servoBar.style.width = ((servo - 20) / 140 * 100) + "%";
+        }
+    </script>
+</body>
+</html>

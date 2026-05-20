@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>InMoov: Normalization Explorer</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f1b; color: #e0e0e0; padding: 40px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: #1a1a2e; padding: 30px; border-radius: 20px; border: 2px solid #4ecca3; width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { color: #4ecca3; margin-top: 0; }
+        .bar-container { background: #252545; height: 30px; border-radius: 15px; margin: 20px 0; overflow: hidden; position: relative; }
+        .bar { height: 100%; transition: width 0.1s ease; border-radius: 15px; }
+        .raw-bar { background: #533483; }
+        .norm-bar { background: #4ecca3; }
+        .servo-bar { background: #e94560; }
+        .label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+        .value { color: #4ecca3; font-family: monospace; font-size: 1.2em; }
+        input[type=range] { width: 100%; height: 15px; border-radius: 5px; background: #252545; outline: none; -webkit-appearance: none; margin: 20px 0; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 25px; height: 25px; border-radius: 50%; background: #4ecca3; cursor: pointer; }
+        .formula { background: #0f0f1b; padding: 15px; border-radius: 10px; font-family: monospace; font-size: 0.9em; border-left: 5px solid #4ecca3; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Hand-to-Servo Pipeline</h1>
+        
+        <p>1. Camera Ratio (Input)</p>
+        <div class="label"><span>Tip-to-Wrist / Base-to-Wrist</span> <span class="value" id="rawText">0.40</span></div>
+        <input type="range" id="rawIn" min="0.4" max="3.0" step="0.01" value="0.4">
+        
+        <p>2. Normalization (Universal 0-1)</p>
+        <div class="label"><span>Normalized Curl Score</span> <span class="value" id="normText">0.00</span></div>
+        <div class="bar-container"><div id="normB" class="bar norm-bar" style="width: 0%"></div></div>
+        <div class="formula">norm = (current - closed) / (open - closed)</div>
+
+        <p>3. Servo Degrees (Output)</p>
+        <div class="label"><span>InMoov Finger Angle</span> <span class="value" id="servoText">20.0°</span></div>
+        <div class="bar-container"><div id="servoB" class="bar servo-bar" style="width: 0%"></div></div>
+        <div class="formula">angle = 20 + (norm * 140)</div>
+    </div>
+
+    <script>
+        const slider = document.getElementById('rawIn');
+        slider.oninput = function() {
+            let raw = parseFloat(this.value);
+            document.getElementById('rawText').innerText = raw.toFixed(2);
+            
+            // Normalize (using 0.4 and 3.0 as example limits)
+            let norm = (raw - 0.4) / (3.0 - 0.4);
+            norm = Math.max(0, Math.min(1, norm));
+            document.getElementById('normText').innerText = norm.toFixed(2);
+            document.getElementById('normB').style.width = (norm * 100) + "%";
+            
+            // Servo Map
+            let servo = 20 + (norm * 140);
+            document.getElementById('servoText').innerText = servo.toFixed(1) + "°";
+            document.getElementById('servoB').style.width = ((servo - 20) / 140 * 100) + "%";
+        }
+    </script>
+</body>
+</html>

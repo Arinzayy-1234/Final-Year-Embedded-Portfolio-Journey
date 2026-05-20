@@ -24,7 +24,7 @@ arr = np.array([1, 2, 3])
 print(f"NumPy array created: {arr}")
 
 # Basic TensorFlow check
-if tf.config.list_physical_devices('GPU'):
+if tf.config.list_physical_devices('GPU'): 
     print("TensorFlow (GPU) is ready.")
 else:
     print("TensorFlow (CPU) is ready.")

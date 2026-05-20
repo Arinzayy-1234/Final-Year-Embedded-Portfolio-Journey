@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>InMoov: Normalization & Calibration Explorer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0c29; background: linear-gradient(to right, #24243e, #302b63, #0f0c29); color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .container { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37); border: 1px solid rgba(255, 255, 255, 0.18); width: 80%; max-width: 800px; }
+        h1 { color: #4ecca3; text-align: center; margin-bottom: 30px; }
+        .box { background: rgba(0, 0, 0, 0.3); padding: 25px; border-radius: 15px; margin-bottom: 25px; border-left: 5px solid #4ecca3; }
+        .box.servo { border-left-color: #ff4b2b; }
+        .label { display: flex; justify-content: space-between; font-size: 1.2rem; margin-bottom: 15px; }
+        .value { color: #4ecca3; font-weight: bold; font-family: monospace; font-size: 1.4rem; }
+        .box.servo .value { color: #ff4b2b; }
+        input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 8px; cursor: pointer; background: #555; border-radius: 4px; }
+        input[type=range]::-webkit-slider-thumb { height: 24px; width: 24px; border-radius: 50%; background: #4ecca3; cursor: pointer; -webkit-appearance: none; margin-top: -8px; box-shadow: 0 0 10px rgba(78, 204, 163, 0.5); }
+        .progress-container { width: 100%; background-color: #222; border-radius: 10px; height: 20px; overflow: hidden; }
+        .progress-bar { height: 100%; transition: width 0.1s ease; }
+        #normBar { background: #4ecca3; box-shadow: 0 0 15px rgba(78, 204, 163, 0.6); }
+        #servoBar { background: #ff4b2b; box-shadow: 0 0 15px rgba(255, 75, 43, 0.6); }
+        .limits { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.9rem; color: #888; }
+        .math { font-style: italic; color: #aaa; margin-top: 10px; text-align: center; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>InMoov Intelligence Dashboard</h1>
+    <div class="container">
+        
+        <div class="box">
+            <div class="label"><span>Camera Input (Raw Ratio)</span> <span class="value" id="rawVal">1.70</span></div>
+            <input type="range" id="raw" min="0.4" max="3.0" step="0.01" value="1.70">
+            <div class="limits"><span>Closed (Calib): 0.4</span> <span>Open (Calib): 3.0</span></div>
+            <p class="math">Tip-to-Wrist / Base-to-Wrist</p>
+        </div>
+
+        <div class="box">
+            <div class="label"><span>Normalization (Common Language)</span> <span class="value" id="normVal">0.50</span></div>
+            <div class="progress-container">
+                <div id="normBar" class="progress-bar" style="width: 50%;"></div>
+            </div>
+            <p class="math">norm = (raw - 0.4) / (3.0 - 0.4)</p>
+        </div>
+
+        <div class="box servo">
+            <div class="label"><span>Servo Command (Physical Move)</span> <span class="value" id="servoVal">90.0°</span></div>
+            <div class="progress-container">
+                <div id="servoBar" class="progress-bar" style="width: 50%;"></div>
+            </div>
+            <p class="math">angle = 20 + (norm * 140)</p>
+        </div>
+
+    </div>
+
+    <script>
+        const rawSlider = document.getElementById('raw');
+        const rawVal = document.getElementById('rawVal');
+        const normVal = document.getElementById('normVal');
+        const normBar = document.getElementById('normBar');
+        const servoVal = document.getElementById('servoVal');
+        const servoBar = document.getElementById('servoBar');
+
+        rawSlider.oninput = function() {
+            let val = parseFloat(this.value);
+            rawVal.innerText = val.toFixed(2);
+
+            // 1. Normalization (Using sample calib: 0.4 to 3.0)
+            let norm = (val - 0.4) / (3.0 - 0.4);
+            norm = Math.min(Math.max(norm, 0), 1); // Clamp 0-1
+            normVal.innerText = norm.toFixed(2);
+            normBar.style.width = (norm * 100) + "%";
+
+            // 2. Mapping to Servo (20 to 160)
+            let servo = 20 + (norm * 140);
+            servoVal.innerText = servo.toFixed(1) + "°";
+            // Bar width percentage relative to 20-160 range
+            servoBar.style.width = (norm * 100) + "%";
+        }
+    </script>
+</body>
+</html>

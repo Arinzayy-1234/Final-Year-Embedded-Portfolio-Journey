@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>InMoov Portfolio: Pipeline Interactive</title>
+    <style>
+        :root {
+            --bg: #0f0f1b;
+            --panel: #1a1a2e;
+            --accent: #4ecca3;
+            --text: #e0e0e0;
+            --servo: #e94560;
+        }
+        body { 
+            font-family: 'Segoe UI', 'Consolas', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container { max-width: 800px; width: 100%; }
+        .box { 
+            background: var(--panel); 
+            padding: 25px; 
+            border-radius: 15px; 
+            border: 1px solid #30363d; 
+            margin-bottom: 25px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
+        }
+        .box:hover { transform: translateY(-5px); border-color: var(--accent); }
+        input[type=range] { 
+            width: 100%; 
+            margin: 20px 0;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+        .label { display: flex; justify-content: space-between; font-size: 1.2rem; }
+        .value { color: var(--accent); font-weight: bold; font-family: 'Consolas'; }
+        .bar-bg { width: 100%; height: 12px; background: #000; border-radius: 6px; overflow: hidden; margin-top: 10px; }
+        .bar-fill { height: 100%; width: 0%; transition: width 0.1s ease-out; }
+        #normFill { background: var(--accent); }
+        #servoFill { background: var(--servo); }
+        h1 { color: var(--accent); margin-bottom: 30px; }
+        p { color: #8b949e; line-height: 1.5; }
+        .step { font-weight: bold; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>InMoov Hand: The Logic Pipeline</h1>
+
+        <!-- STAGE 1 -->
+        <div class="box">
+            <div class="step">Step 1: Physical Ratio (Hand Tracking)</div>
+            <div class="label">
+                <span>Camera Measurement (Tip-to-Wrist)</span> 
+                <span class="value" id="rawVal">0.40</span>
+            </div>
+            <input type="range" id="rawInput" min="0.4" max="3.0" step="0.01" value="0.4">
+            <p>Your unique hand gives a raw ratio between 0.4 (Closed) and 3.0 (Open). This changes depending on the person.</p>
+        </div>
+
+        <!-- STAGE 2 -->
+        <div class="box">
+            <div class="step">Step 2: Normalization (The Common Language)</div>
+            <div class="label">
+                <span>Universal Scale (0.0 to 1.0)</span> 
+                <span class="value" id="normVal">0.00</span>
+            </div>
+            <div class="bar-bg">
+                <div id="normFill" class="bar-fill"></div>
+            </div>
+            <p>We convert your personal numbers into a universal percentage. 0% is always closed, 100% is always open, regardless of hand size.</p>
+        </div>
+
+        <!-- STAGE 3 -->
+        <div class="box">
+            <div class="step">Step 3: Servo Mapping (Robot Motion)</div>
+            <div class="label">
+                <span>Servo Signal (Degrees)</span> 
+                <span class="value" id="servoVal">20.0°</span>
+            </div>
+            <div class="bar-bg">
+                <div id="servoFill" class="bar-fill"></div>
+            </div>
+            <p>Finally, we map that percentage to your InMoov servos (20° to 160°). This is what the Arduino receives.</p>
+        </div>
+    </div>
+
+    <script>
+        const slider = document.getElementById('rawInput');
+        
+        slider.oninput = function() {
+            let raw = parseFloat(this.value);
+            document.getElementById('rawVal').innerText = raw.toFixed(2);
+            
+            // MATH: Normalization
+            // (current - min) / (max - min)
+            let norm = (raw - 0.4) / (3.0 - 0.4);
+            norm = Math.max(0, Math.min(1, norm));
+            
+            document.getElementById('normVal').innerText = norm.toFixed(2);
+            document.getElementById('normFill').style.width = (norm * 100) + "%";
+            
+            // MATH: Servo Mapping
+            // min_angle + (norm * range)
+            let servo = 20 + (norm * 140);
+            document.getElementById('servoVal').innerText = servo.toFixed(1) + "°";
+            document.getElementById('servoFill').style.width = ((servo - 20) / 140 * 100) + "%";
+        }
+    </script>
+</body>
+</html>
