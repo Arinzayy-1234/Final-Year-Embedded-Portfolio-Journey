@@ -16,9 +16,9 @@ class ArduinoServoDriver:
         try:
             self.connection = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
             time.sleep(2) # Wait for Arduino to reset
-            print(f"✅ Connected to Arduino on {self.port}")
+            print(f"[OK] Connected to Arduino on {self.port}")
         except Exception as e:
-            print(f"❌ SERIAL ERROR: Could not connect to {self.port}. Check your USB connection.")
+            print(f"[ERROR] SERIAL ERROR: Could not connect to {self.port}. Check your USB connection.")
             print(f"Technical details: {e}")
 
     def send_angles(self, angles_dict):

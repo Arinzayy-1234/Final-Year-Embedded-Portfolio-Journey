@@ -101,14 +101,14 @@ def take_snapshot (last_frame, state_name):
             choice = cv2.waitKey(0) & 0xFF  # WAITING FOR KEY CONFIRMATION and  PAUSE here so you can actually see the result
             
             if choice == ord('y'):
-                print(f'✅ {state_name} CALIBRATION is now SAVED !!!!!!')
+                print(f'[OK] {state_name} CALIBRATION is now SAVED !!!!!!')
                 print('SNAPSHOT PROCESSED. returning to Live feed...')
 
                 is_frozen = False
                 return trial_ratios # send back the verified data to be stored.
 
             elif choice == ord('n'):
-                print(f'❌❌ {state_name} CALIBRATION is THROWN AWAY !')
+                print(f'[DISCARDED] {state_name} CALIBRATION is THROWN AWAY !')
                 is_frozen = False
                 return None # sends back nothing
             
@@ -143,15 +143,24 @@ def print_both_calibra():
 
     print('='*40 + "\n")
 
+import math
 
-final_calibra = {}
-calibra_done = False
+# INITIAL SYSTEM RANGE SETTINGS ( baseline average ranges )
+# The Dynamic Auto-Calibration Engine updates these dynamically in the background!
+final_calibra = {
+    "Thumb":  {"open": 1.15, "close": 0.50},
+    "Index":  {"open": 1.25, "close": 0.45},
+    "Middle": {"open": 1.30, "close": 0.45},
+    "Ring":   {"open": 1.25, "close": 0.45},
+    "Pinky":  {"open": 1.15, "close": 0.50},
+}
+calibra_done = True # Set to True by default so tracking starts INSTANTLY on run!
 
 def calibrate_finger():
     global calibra_done
 
     if not open_calibra or not close_calibra:
-        print('⚠️ ERROR: I can\'t organise the data. One or Both calibration set are missing')
+        print('[WARNING] ERROR: I can\'t organise the data. One or Both calibration set are missing')
         return
     
     for finger_name in FINGER_POINTS: # finger is the finger name
@@ -162,7 +171,7 @@ def calibrate_finger():
         final_calibra[finger_name] = {'open': open_ratio, 'close' : close_ratio}
 
     calibra_done = True
-    print('✅  Finger calibration organized into final profile. calibra_done = TRUE ')
+    print('[OK] Finger calibration organized into final profile. calibra_done = TRUE ')
 
 def normalize(current_ratio, limit_open, limit_close):
 
@@ -210,34 +219,63 @@ class Smoother:
 
 servo_smoother = Smoother(alpha=0.25) # Creating the EMA filter with alpha 0.25 (25% new, 75% old)
 
+def get_wrist_angle(landmark_list):
+    """
+    Calculates the roll angle of the hand in degrees from 0 to 180,
+    based on the vector between the wrist (0) and middle knuckle (9).
+    """
+    # 0 = Wrist, 9 = Middle Finger MCP
+    w_x, w_y = landmark_list[0][1], landmark_list[0][2]
+    m_x, m_y = landmark_list[9][1], landmark_list[9][2]
+    
+    dx = m_x - w_x
+    dy = m_y - w_y # Screen Y coordinate increases downward
+    
+    # Calculate angle in degrees
+    angle_rad = math.atan2(-dy, dx) # Invert dy to match standard Cartesian coords
+    angle_deg = math.degrees(angle_rad)
+    
+    # Normally, straight hand is ~90. We map this directly to the Wrist servo (0 - 180)
+    # Clamp to ensure it doesn't exceed mechanical boundaries
+    wrist_servo = np.clip(angle_deg, 0.0, 180.0)
+    return float(wrist_servo)
+
 def full_realtime_process_pipeline(landmark_list):
     """
     The Assembly Line: Converts raw coordinates into smooth servo degrees : 
-    RAW IMAGE -> AI LANDMARKS -> RATIO -> NORMALIZATION -> SERVO ANGLE -> SMOOTHENING
+    RAW IMAGE -> AI LANDMARKS -> RATIO -> AUTO-CALIBRATION -> NORMALIZATION -> SERVO ANGLE -> SMOOTHENING
     """
 
     commands = {}
 
+    # 1. Process all 5 fingers
     for finger_name, point in FINGER_POINTS.items():
 
         # Step 1: Get the raw ratio
         current_ratio = get_finger_curl_ratio(landmark_list, point['tip'], point['base'])
 
-        # Step 2: Normalize (Convert to 0.0 - 1.0 percentage)
-        # I am  use]ing the limits I saved during the 's' key sync
+        # DYNAMIC AUTO-CALIBRATION (Learns your hand limits in real-time)
+        if current_ratio > final_calibra[finger_name]['open']:
+            final_calibra[finger_name]['open'] = current_ratio
+        elif current_ratio < final_calibra[finger_name]['close']:
+            final_calibra[finger_name]['close'] = current_ratio
 
+        # Step 2: Normalize (Convert to 0.0 - 1.0 percentage) using self-adapting limits
         norm = normalize(current_ratio, final_calibra[finger_name]['open'] , final_calibra[finger_name]['close'])
 
         # Step 3: Map to Servo (Convert percentage to 20° - 160°)
-
         servo_angle = map_norm_to_servo_angle(norm, finger_name)
 
         # Step 4: Smooth (Remove the jitters using EMA)
         smooth_angle = servo_smoother.smooth(finger_name, servo_angle)
 
         # Step 5: Final Clean-up
-
         commands[finger_name] = round(float(smooth_angle),1)
+
+    # 2. Process Wrist Roll!
+    raw_wrist = get_wrist_angle(landmark_list)
+    smooth_wrist = servo_smoother.smooth("Wrist", raw_wrist)
+    commands["Wrist"] = round(float(smooth_wrist), 1)
 
     return commands
 
@@ -303,11 +341,11 @@ while True:
 
             # checks for 'o' and 'c' errors ONLY if success was False
             elif (key == ord('o') or key == ord('c')) and (not success):
-                print("⚠️ Camera Error: Cannot take snapshot without a live frame!")
+                print("[WARNING] Camera Error: Cannot take snapshot without a live frame!")
 
             else:
                 # Now the "Wrong Key" only triggers for actual keyboard mistakes
-                print(f'⚠️ Wrong key pressed. The Key {chr(key)} is not a valid command (o,c,s,q).Try again ')
+                print(f'[WARNING] Wrong key pressed. The Key {chr(key)} is not a valid command (o,c,s,q). Try again ')
 
 
 

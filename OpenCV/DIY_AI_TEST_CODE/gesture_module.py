@@ -20,7 +20,7 @@ try:
     VOICE_AVAILABLE = True
 except ImportError:
     VOICE_AVAILABLE = False
-    print("⚠️ VOICE MODULE DISABLED: Run 'pip install SpeechRecognition PyAudio' to enable.")
+    print("[WARNING] VOICE MODULE DISABLED: Run 'pip install SpeechRecognition PyAudio' to enable.")
 
 # --- HELPER: Auto-detect Arduino COM port ---
 def find_arduino_port():
@@ -29,9 +29,9 @@ def find_arduino_port():
     for port in ports:
         # Common Arduino identifiers on Windows
         if any(x in port.description.lower() for x in ['arduino', 'usb serial', 'ch340', 'cp2102', 'ftdi', 'usb']):
-            print(f"🔍 Arduino detected on {port.device}")
+            print(f"[ARDUINO] Detected on {port.device}")
             return port.device
-    print("⚠️ Arduino not auto-detected. Using COM3 as fallback.")
+    print("[WARNING] Arduino not auto-detected. Using COM3 as fallback.")
     return 'COM3'
 
 # --- INITIALIZATION ---
@@ -52,16 +52,31 @@ GESTURE_DB_FILE = "gestures.json"
 # --- STORAGE ---
 open_hand_ratios = {}
 closed_hand_ratios = {}
-final_calibration_profile = {}
-calibration_is_complete = False
+
+# Extremely tight baseline ranges so the tracker auto-calibrates to the user's hand instantly!
+DEFAULT_CALIBRATION_PROFILE = {
+    "Thumb":  {"open": 1.01, "close": 0.99},
+    "Index":  {"open": 1.01, "close": 0.99},
+    "Middle": {"open": 1.01, "close": 0.99},
+    "Ring":   {"open": 1.01, "close": 0.99},
+    "Pinky":  {"open": 1.01, "close": 0.99},
+    "Wrist":  {"open": 5.0,  "close": -5.0},
+}
+
+def _make_default_profile():
+    return {finger: {"open": vals["open"], "close": vals["close"]}
+            for finger, vals in DEFAULT_CALIBRATION_PROFILE.items()}
+
+final_calibration_profile = _make_default_profile()
+calibration_is_complete = True  # live tracking starts immediately
 
 SERVO_LIMITS = {
-    "Thumb":  {"min": 20, "max": 150},
-    "Index":  {"min": 20, "max": 160},
-    "Middle": {"min": 20, "max": 160},
-    "Ring":   {"min": 25, "max": 155},
-    "Pinky":  {"min": 25, "max": 145},
-    "Wrist":  {"min": 0,  "max": 180},
+    "Thumb":  {"min": 175, "max": 285},
+    "Index":  {"min": 90,  "max": 290},
+    "Middle": {"min": 100, "max": 290},
+    "Ring":   {"min": 100, "max": 290},
+    "Pinky":  {"min": 85,  "max": 290},
+    "Wrist":  {"min": 0,   "max": 300},
 }
 
 hand_detector = RawHandDetector()
@@ -79,7 +94,7 @@ def save_gesture_to_database(gesture_name, servo_angles):
         except: database = {}
     database[gesture_name.lower()] = servo_angles
     with open(GESTURE_DB_FILE, 'w') as f: json.dump(database, f, indent=4)
-    print(f"\n✅ SUCCESS: '{gesture_name}' added to Keeper of Words!")
+    print(f"\n[SUCCESS] '{gesture_name}' added to Keeper of Words!")
 
 def get_gesture_from_database(gesture_name):
     if os.path.exists(GESTURE_DB_FILE):
@@ -96,7 +111,7 @@ class VoiceModule:
 
     def listen(self):
         with self.mic as source:
-            print("\n🎤 LISTENING...")
+            print("\n[VOICE] LISTENING...")
             self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
             try:
                 audio = self.recognizer.listen(source, timeout=5)
@@ -116,46 +131,59 @@ def calculate_finger_curl_ratio(hand_landmarks, tip_idx, base_idx, wrist_idx=0):
     return np.linalg.norm(tip - wrist) / (np.linalg.norm(base - wrist) + 1e-6)
 
 def calculate_wrist_rotation(hand_landmarks):
-    # Angle between Index MCP(5) and Pinky MCP(17)
-    p1, p2 = np.array([hand_landmarks[5][1], hand_landmarks[5][2]]), np.array([hand_landmarks[17][1], hand_landmarks[17][2]])
-    delta = p1 - p2
-    return np.degrees(np.arctan2(delta[1], delta[0])) + 90
+    # Vector from Wrist(0) to Middle Finger MCP(9) - robust centerline angle
+    w = np.array([hand_landmarks[0][1], hand_landmarks[0][2]])
+    m = np.array([hand_landmarks[9][1], hand_landmarks[9][2]])
+    delta = m - w
+    # Straight up is negative Y direction (-90 degrees), so add 90 to center it at exactly 0.0
+    angle = np.degrees(np.arctan2(delta[1], delta[0])) + 90
+    return angle
 
 # ═══════════════════════════════════════════════════════════
-# 🔧 WRIST CALIBRATION - TUNE THESE VALUES AFTER PHYSICAL TEST
+# 🔧 WRIST CALIBRATION - CENTRED AT 0.0 DEGREES (STRAIGHT UP)
 # ═══════════════════════════════════════════════════════════
-# Run gesture_module.py, rotate wrist fully LEFT → note w_raw value → set as WRIST_RAW_MIN
-# Rotate wrist fully RIGHT → note w_raw value → set as WRIST_RAW_MAX
-# These values convert raw camera angle → normalized 0.0-1.0 → servo angle
-WRIST_RAW_MIN = -30   # ← TUNE: raw value when wrist fully rotated LEFT
-WRIST_RAW_MAX = 60    # ← TUNE: raw value when wrist fully rotated RIGHT
+WRIST_RAW_MIN = -45   # raw tilt left in degrees
+WRIST_RAW_MAX = 45    # raw tilt right in degrees
 # ═══════════════════════════════════════════════════════════
 
 def calculate_finger_spread(hand_landmarks, tip_idx, mcp_idx):
     """
-    Detect lateral finger movement for cartoonish virtual animation.
-    Physical hand can't move fingers side-to-side, but virtual hand can!
-    Returns: spread angle in degrees (-30 to +30)
+    Dampened subtle lateral finger spread for a solid, realistic cybernetic look.
+    Locks fingers to move primarily in their vertical plane, like a real robotic chassis.
     """
     tip = np.array([hand_landmarks[tip_idx][1], hand_landmarks[tip_idx][2]])
     mcp = np.array([hand_landmarks[mcp_idx][1], hand_landmarks[mcp_idx][2]])
-    # Lateral offset: x-axis difference (left/right movement)
     lateral = tip[0] - mcp[0]
-    # Normalize: divide by sensitivity factor, clip to ±1.0, scale to ±30°
-    # Adjust 15.0 to change sensitivity (smaller = more sensitive)
-    spread = np.clip(lateral / 15.0, -1.0, 1.0) * 30.0
+    # Highly dampened sideways flex: max ±3.0 degrees for realistic structural rigidity
+    spread = np.clip(lateral / 25.0, -1.0, 1.0) * 3.0
     return spread
 
 def normalize_value(current, limit_open, limit_close):
-    if abs(limit_open - limit_close) < 1e-6: return 0.5
+    if abs(limit_open - limit_close) < 1e-6:
+        return 0.5
     return float(np.clip((current - limit_close) / (limit_open - limit_close), 0.0, 1.0))
+
+
+def auto_update_calibration(finger_name, ratio):
+    """Expand the stored limits when the user stretches beyond them."""
+    profile = final_calibration_profile.setdefault(
+        finger_name, {"open": ratio, "close": ratio})
+    if ratio > profile["open"]:
+        profile["open"] = ratio
+    elif ratio < profile["close"]:
+        profile["close"] = ratio
 
 def map_to_servo(norm, name):
     l = SERVO_LIMITS[name]
-    return round(l["min"] + (norm * (l["max"] - l["min"])), 1)
+    if name == "Wrist":
+        return round(l["min"] + (norm * (l["max"] - l["min"])), 1)
+    else:
+        # Fingers: norm=1.0 is open (l["min"] servo), norm=0.0 is closed (l["max"] servo)
+        inverted_norm = 1.0 - norm
+        return round(l["min"] + (inverted_norm * (l["max"] - l["min"])), 1)
 
 class Smoother:
-    def __init__(self, alpha=0.25):
+    def __init__(self, alpha=0.18):
         self.alpha, self.history = alpha, {}
     def smooth(self, label, val):
         if label not in self.history: self.history[label] = val
@@ -184,25 +212,27 @@ def process_frame(landmarks):
     cmds = {}
     for n, ids in FINGER_LANDMARK_MAP.items():
         ratio = calculate_finger_curl_ratio(landmarks, ids["tip"], ids["base"])
-        norm = normalize_value(ratio, final_calibration_profile[n]['open'], final_calibration_profile[n]['close'])
+        auto_update_calibration(n, ratio)
+        profile = final_calibration_profile[n]
+        norm = normalize_value(ratio, profile['open'], profile['close'])
         cmds[n] = round(signal_smoother.smooth(n, map_to_servo(norm, n)), 1)
         
-        # 🎨 CARTOONISH FALLBACK: Add virtual spread for side-to-side finger motion
-        # Physical hand can't do this, but virtual hand will animate it!
+        # Dampened organic lateral finger spread
         spread = calculate_finger_spread(landmarks, ids["tip"], ids["base"])
         cmds[f"{n}_Spread"] = round(signal_smoother.smooth(f"{n}_Spread", spread), 1)
     
-    # Wrist rotation: normalize raw angle to 0.0-1.0 using calibrated limits
+    # Wrist rotation with dynamic calibration!
     w_raw = calculate_wrist_rotation(landmarks)
-    # Normalize: (raw - min) / (max - min), clipped to [0,1]
-    w_range = WRIST_RAW_MAX - WRIST_RAW_MIN + 1e-6  # +1e-6 prevents division by zero
-    w_norm = np.clip((w_raw - WRIST_RAW_MIN) / w_range, 0.0, 1.0)
+    auto_update_calibration("Wrist", w_raw)
+    w_profile = final_calibration_profile["Wrist"]
+    w_norm = normalize_value(w_raw, w_profile['open'], w_profile['close'])
     cmds["Wrist"] = round(signal_smoother.smooth("Wrist", map_to_servo(w_norm, "Wrist")), 1)
     return cmds
 
 # --- MAIN LOOP ---
-print("\n🔥 INMOOV GESTURE MODULE READY")
+print("\n[INMOOV] GESTURE MODULE READY")
 print("Controls: [O] Open, [C] Closed, [S] Sync, [K] Save, [T] Text, [V] Voice, [Q] Quit")
+print("Default calibration loaded - wave at the camera to auto-tune.")
 
 while True:
     k = cv2.waitKey(1) & 0xFF
@@ -214,7 +244,7 @@ while True:
             marks = hand_detector.find_position(img)
             if marks and calibration_is_complete:
                 servo_data = process_frame(marks)
-                print(f"TRACKING: {servo_data}", end='\r')
+                print(f"TRACKING: {servo_data}      ", end='\r', flush=True)
                 send_to_virtual_hand(servo_data)
                 arduino.send_angles(servo_data)
                 # ⚡ Tiny delay helps sync threads and reduce visual lag
@@ -230,7 +260,7 @@ while True:
                 for n in SERVO_LIMITS:
                     if n in open_hand_ratios: final_calibration_profile[n] = {'open': open_hand_ratios[n], 'close': closed_hand_ratios[n]}
                 calibration_is_complete = True
-                print("\n✅ CALIBRATION LOCKED.")
+                print("\n[CALIBRATION] LOCKED.")
         elif k == ord('k') and 'servo_data' in locals():
             name = input("\nName this sign: ")
             save_gesture_to_database(name, servo_data)
