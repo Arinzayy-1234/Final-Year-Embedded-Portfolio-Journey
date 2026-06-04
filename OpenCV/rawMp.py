@@ -171,7 +171,8 @@ class RawHandDetector:
                 for idx, lm in enumerate(
                         self.hand_data.hand_landmarks[hand_index]):
                     cx, cy = int(lm.x * w), int(lm.y * h)
-                    landmark_list.append([idx, cx, cy])
+                    cz = int(lm.z * w)  # Scale depth by width to keep X/Y/Z coordinate scales matching
+                    landmark_list.append([idx, cx, cy, cz])
                     if draw:
                         cv2.circle(frame, (cx, cy), 5,
                                    (255, 0, 255), cv2.FILLED)

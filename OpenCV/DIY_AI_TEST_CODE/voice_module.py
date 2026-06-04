@@ -7,15 +7,28 @@ class VoiceCommander:
     """
     def __init__(self):
         self.recognizer = sr.Recognizer()
-        # We don't initialize Microphone here to avoid keeping the mic "open" 
-        # until the user actually presses the voice key.
+        self.recognizer.dynamic_energy_threshold = True
 
-    def listen_and_convert(self):
+    def calibrate(self, duration=0.8):
+        """Calibrates the recognizer energy threshold for ambient noise."""
+        try:
+            with sr.Microphone() as source:
+                print(f"🎤 [VOICE] Calibrating mic for ambient noise ({duration}s)... Please remain quiet.")
+                self.recognizer.adjust_for_ambient_noise(source, duration=duration)
+                print(f"✅ [VOICE] Calibration done. Target energy threshold: {self.recognizer.energy_threshold:.1f}")
+                return True
+        except Exception as e:
+            print(f"❌ [VOICE] Calibration error: {e}")
+            return False
+
+    def listen_and_convert(self, should_calibrate=False):
         """Activates mic, listens, and returns recognized text."""
         try:
             with sr.Microphone() as source:
-                print("\n🎤 [VOICE MODE] Listening... Speak clearly into the mic.")
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                if should_calibrate:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                
+                print("\n🎤 [VOICE MODE] LISTENING NOW... Speak clearly into the mic!")
                 audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
 
             print("🧠 Processing voice...")
@@ -39,5 +52,6 @@ class VoiceCommander:
 if __name__ == "__main__":
     # Test script
     vc = VoiceCommander()
+    vc.calibrate()
     res = vc.listen_and_convert()
     print(f"Result: {res}")

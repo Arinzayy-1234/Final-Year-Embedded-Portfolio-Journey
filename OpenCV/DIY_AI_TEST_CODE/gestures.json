@@ -1,0 +1,80 @@
+{
+    "open": {
+        "Thumb": 175.0,
+        "Index": 90.0,
+        "Middle": 100.0,
+        "Ring": 100.0,
+        "Pinky": 85.0,
+        "Wrist": 150.0,
+        "Thumb_Spread": 0.0,
+        "Index_Spread": 0.0,
+        "Middle_Spread": 0.0,
+        "Ring_Spread": 0.0,
+        "Pinky_Spread": 0.0
+    },
+    "close": {
+        "Thumb": 285.0,
+        "Index": 290.0,
+        "Middle": 290.0,
+        "Ring": 290.0,
+        "Pinky": 290.0,
+        "Wrist": 150.0,
+        "Thumb_Spread": 0.0,
+        "Index_Spread": 0.0,
+        "Middle_Spread": 0.0,
+        "Ring_Spread": 0.0,
+        "Pinky_Spread": 0.0
+    },
+    "closed": {
+        "Thumb": 285.0,
+        "Index": 290.0,
+        "Middle": 290.0,
+        "Ring": 290.0,
+        "Pinky": 290.0,
+        "Wrist": 150.0,
+        "Thumb_Spread": 0.0,
+        "Index_Spread": 0.0,
+        "Middle_Spread": 0.0,
+        "Ring_Spread": 0.0,
+        "Pinky_Spread": 0.0
+    },
+    "fist": {
+        "Thumb": 285.0,
+        "Index": 290.0,
+        "Middle": 290.0,
+        "Ring": 290.0,
+        "Pinky": 290.0,
+        "Wrist": 150.0,
+        "Thumb_Spread": 0.0,
+        "Index_Spread": 0.0,
+        "Middle_Spread": 0.0,
+        "Ring_Spread": 0.0,
+        "Pinky_Spread": 0.0
+    },
+    "peace": {
+        "Thumb": 285.0,
+        "Index": 90.0,
+        "Middle": 100.0,
+        "Ring": 290.0,
+        "Pinky": 290.0,
+        "Wrist": 150.0,
+        "Thumb_Spread": 0.0,
+        "Index_Spread": 0.0,
+        "Middle_Spread": 0.0,
+        "Ring_Spread": 0.0,
+        "Pinky_Spread": 0.0
+    },
+    "thumbs up": {
+        "Thumb": 175.0,
+        "Index": 290.0,
+        "Middle": 290.0,
+        "Ring": 290.0,
+        "Pinky": 290.0,
+        "Wrist": 150.0,
+        "Thumb_Spread": 0.0,
+        "Index_Spread": 0.0,
+        "Middle_Spread": 0.0,
+        "Ring_Spread": 0.0,
+        "Pinky_Spread": 0.0
+    }
+}
