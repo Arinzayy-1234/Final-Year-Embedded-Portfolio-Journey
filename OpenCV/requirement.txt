@@ -39,6 +39,8 @@ PyAudio==0.2.14
 pycparser==2.23
 pygame==2.6.1
 Pygments==2.19.2
+PyOpenGL==3.1.10
+PyOpenGL-accelerate==3.1.10
 pyparsing==3.2.5
 pyserial==3.5
 python-dateutil==2.9.0.post0
