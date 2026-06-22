@@ -26,7 +26,7 @@ const float max_pulse_width    = 2500.0;
 const float min_angle          = 0.0;
 const float hardware_max_angle = 320.0; // The chip's raw conversion baseline (full physical rotation)
 const float safety_max_angle   = 300.0; // Your physical mechanical cap
-const float pwm_frequency      = 300.0; // Fixed refresh rate frequency
+const float pwm_frequency      = 50.0;  // Standard hobby servo frequency (50 Hz) — DO NOT change
 
 // Servo channel mapping on PCA9685
 // Must match the order Python sends: Thumb,Index,Middle,Ring,Pinky,Wrist
@@ -69,7 +69,7 @@ void setup() {
   // Initialize I2C and PCA9685
   Wire.begin();
   pwm.begin();
-  pwm.setPWMFreq(300);  // Digital servos run at 300 Hz
+  pwm.setPWMFreq(50);   // Standard hobby servos run at 50 Hz
   
   delay(10);  // Wait for PCA9685 to stabilize
   

@@ -33,7 +33,6 @@ def find_arduino_port():
         if any(x in port.description.lower() for x in ['arduino', 'usb serial', 'ch340', 'cp2102', 'ftdi', 'usb']):
             print(f"[ARDUINO] Detected on {port.device}")
             return port.device
-    print("[WARNING] Arduino not auto-detected. Using COM3 as fallback.")
     return 'COM5'
 
 # --- INITIALIZATION ---
@@ -52,7 +51,8 @@ FINGER_LANDMARK_MAP = {
 
 # Resolve the database path relative to this script directory
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-GESTURE_DB_FILE = os.path.join(SCRIPT_DIR, "gestures.json")
+GESTURE_DB_FILE  = os.path.join(SCRIPT_DIR, "gestures.json")
+SEQUENCE_DB_FILE = os.path.join(SCRIPT_DIR, "sequences.json")
 
 # --- STORAGE ---
 open_hand_ratios = {}
@@ -114,6 +114,43 @@ def get_gesture_from_database(gesture_name):
         with open(GESTURE_DB_FILE, 'r') as f:
             return json.load(f).get(gesture_name.lower())
     return None
+
+# --- SEQUENCE DATABASE LOGIC ---
+
+def save_sequence_to_database(seq_name, sequence_list, delay=1.5):
+    database = {}
+    if os.path.exists(SEQUENCE_DB_FILE):
+        try:
+            with open(SEQUENCE_DB_FILE, 'r') as f: database = json.load(f)
+        except: database = {}
+    database[seq_name.lower()] = {"delay": delay, "steps": sequence_list}
+    with open(SEQUENCE_DB_FILE, 'w') as f: json.dump(database, f, indent=4)
+    print(f"\n[SUCCESS] Sequence '{seq_name}' saved ({len(sequence_list)} gestures, {delay}s delay)!")
+
+def get_sequence_from_database(seq_name):
+    """Returns (steps_list, delay) tuple. Handles old list format for backward compatibility."""
+    if os.path.exists(SEQUENCE_DB_FILE):
+        try:
+            with open(SEQUENCE_DB_FILE, 'r') as f:
+                entry = json.load(f).get(seq_name.lower())
+            if entry is None:
+                return None, 1.5
+            if isinstance(entry, list):        # old format — plain list
+                return entry, 1.5
+            return entry.get("steps", []), entry.get("delay", 1.5)
+        except: pass
+    return None, 1.5
+
+def play_sequence(sequence_list, delay=1.5):
+    """Plays each gesture in a sequence with a delay between each step."""
+    print(f"\n[SEQUENCE] Playing {len(sequence_list)} gesture(s) at {delay}s per step...")
+    for i, angles in enumerate(sequence_list):
+        step_label = angles.get("_name", f"Step {i+1}")
+        print(f"  {i+1}/{len(sequence_list)}  ➤  \"{step_label}\"")
+        send_to_virtual_hand(angles)
+        arduino.send_angles(angles)
+        time.sleep(delay)
+    print("[SEQUENCE] Playback complete! Press [SPACE] to resume live tracking.")
 
 def print_focus_reminder():
     print("\n[SYSTEM] ⚠️  Click on the video window ('InMoov Control') to resume keyboard controls! ⚠️\n")
@@ -396,10 +433,12 @@ def process_frame(landmarks):
 print("\n[INMOOV] GESTURE MODULE READY")
 print("Controls:")
 print("  [G] Capture & Save Live Gesture")
-print("  [T] Trigger Pre-saved Gesture (Prompts to add if missing)")
+print("  [T] Trigger Pre-saved Gesture or Sequence")
 print("  [E] Erase Gesture from Database")
 print("  [J] Manually Add Gesture & Angles")
 print("  [V] Voice Command (Speech-to-Sign)")
+print("  [1] Add current pose to Sequence buffer")
+print("  [0] Finish & Save Sequence buffer as named sequence")
 print("  [O] Open Hand Snapshot (Calib)")
 print("  [C] Closed Hand Snapshot (Calib)")
 print("  [S] Sync/Lock Calibration (Stops auto-tuning)")
@@ -411,6 +450,7 @@ print("Default calibration loaded - wave at the camera to auto-tune.")
 
 servo_data = {}
 active_override_gesture = None
+current_sequence_buffer = []   # Holds poses for sequence recording
 
 while True:
     k = cv2.waitKey(1) & 0xFF
@@ -525,40 +565,46 @@ while True:
             print_focus_reminder()
         elif k == ord('t') or k == ord('T'):
             is_camera_frozen = True
-            name = input("\nEnter gesture name to sign: ").strip()
+            name = input("\nEnter gesture or sequence name to play: ").strip()
             if name:
-                angles = get_gesture_from_database(name)
-                if angles:
-                    print(f"[OK] Sending '{name}' to virtual hand and robotic arm immediately!")
+                # Check sequences first, then single gestures
+                sequence, seq_delay = get_sequence_from_database(name)
+                if sequence:
+                    print(f"[OK] Playing sequence '{name}' ({len(sequence)} gestures, {seq_delay}s delay)...")
                     active_override_gesture = name.lower()
-                    send_to_virtual_hand(angles)
-                    arduino.send_angles(angles)
+                    threading.Thread(target=play_sequence, args=(sequence, seq_delay), daemon=True).start()
                 else:
-                    choice = input(f"Gesture '{name}' not found. Do you want to add it to the database? (y/n): ").strip().lower()
-                    if choice == 'y':
-                        print("\nPosition your hand in front of the camera.")
-                        input("Press Enter when ready to capture the snapshot...")
-                        is_camera_frozen = False
-                        success, img_cap = cap.read()
-                        if success:
-                            hand_detector.find_hands(img_cap)
-                            marks_cap = hand_detector.find_position(img_cap)
-                            if marks_cap:
-                                servo_data_cap = process_frame(marks_cap)
-                                print("\nCalculated Servo Angles:")
-                                for comp in ["Thumb", "Index", "Middle", "Ring", "Pinky", "Wrist"]:
-                                    print(f"  {comp:<7}: {servo_data_cap.get(comp, 'N/A')} degrees")
-                                
-                                confirm = input(f"Save gesture '{name}' with these angles? (y/n): ").strip().lower()
-                                if confirm == 'y':
-                                    save_gesture_to_database(name, servo_data_cap)
-                                    active_override_gesture = name.lower()
+                    angles = get_gesture_from_database(name)
+                    if angles:
+                        print(f"[OK] Sending '{name}' to virtual hand and robotic arm immediately!")
+                        active_override_gesture = name.lower()
+                        send_to_virtual_hand(angles)
+                        arduino.send_angles(angles)
+                    else:
+                        choice = input(f"Gesture '{name}' not found. Do you want to add it to the database? (y/n): ").strip().lower()
+                        if choice == 'y':
+                            print("\nPosition your hand in front of the camera.")
+                            input("Press Enter when ready to capture the snapshot...")
+                            is_camera_frozen = False
+                            success, img_cap = cap.read()
+                            if success:
+                                hand_detector.find_hands(img_cap)
+                                marks_cap = hand_detector.find_position(img_cap)
+                                if marks_cap:
+                                    servo_data_cap = process_frame(marks_cap)
+                                    print("\nCalculated Servo Angles:")
+                                    for comp in ["Thumb", "Index", "Middle", "Ring", "Pinky", "Wrist"]:
+                                        print(f"  {comp:<7}: {servo_data_cap.get(comp, 'N/A')} degrees")
+                                    confirm = input(f"Save gesture '{name}' with these angles? (y/n): ").strip().lower()
+                                    if confirm == 'y':
+                                        save_gesture_to_database(name, servo_data_cap)
+                                        active_override_gesture = name.lower()
+                                    else:
+                                        print("[CANCELLED] Discarded.")
                                 else:
-                                    print("[CANCELLED] Discarded.")
+                                    print("[ERROR] No hand detected in the camera feed. Unable to add.")
                             else:
-                                print("[ERROR] No hand detected in the camera feed. Unable to add.")
-                        else:
-                            print("[ERROR] Camera read failed. Unable to add.")
+                                print("[ERROR] Camera read failed. Unable to add.")
             is_camera_frozen = False
             print_focus_reminder()
         elif k == ord('e') or k == ord('E'):
@@ -569,6 +615,109 @@ while True:
             is_camera_frozen = True
             manual_add_gesture()
             is_camera_frozen = False
+        elif k == ord('1'):
+            # --- Add a step to the sequence buffer (live OR from database) ---
+            is_camera_frozen = True
+            step_num = len(current_sequence_buffer) + 1
+            print(f"\n{'═'*55}")
+            print(f"  📸  ADD STEP {step_num} TO SEQUENCE")
+            print(f"{'═'*55}")
+            print("  [C] Capture live from camera (hold your pose now)")
+            print("  [D] Load from gesture database (gestures.json)")
+            source_choice = input("\nYour choice (C / D): ").strip().upper()
+
+            angles_to_add = None
+
+            if source_choice == 'C':
+                # Use the last known hand pose from the live camera feed
+                if servo_data:
+                    print("\n  Angles from your current hand pose:")
+                    for comp in ["Thumb", "Index", "Middle", "Ring", "Pinky", "Wrist"]:
+                        print(f"  {comp:<7}: {servo_data.get(comp, 'N/A')} degrees")
+                    angles_to_add = dict(servo_data)
+                else:
+                    print("[ERROR] No hand detected — show your hand to the camera first, then press [1].")
+
+            elif source_choice == 'D':
+                gest_name = input("  Enter the gesture name to load: ").strip()
+                if gest_name:
+                    loaded = get_gesture_from_database(gest_name)
+                    if loaded:
+                        print(f"\n  [FOUND] '{gest_name}' loaded from database:")
+                        for comp in ["Thumb", "Index", "Middle", "Ring", "Pinky", "Wrist"]:
+                            print(f"  {comp:<7}: {loaded.get(comp, 'N/A')} degrees")
+                        angles_to_add = dict(loaded)
+                    else:
+                        print(f"  [ERROR] '{gest_name}' not found in gestures.json.")
+                        print("         Press [G] to capture and save it first.")
+                else:
+                    print("  [ERROR] Name cannot be empty.")
+            else:
+                print("  [CANCELLED] Invalid choice — press [1] again.")
+
+            # --- If we have angles, ask for confirmation and a step name ---
+            if angles_to_add is not None:
+                while True:
+                    confirm = input(f"\n  Add this to sequence? (y/n): ").strip().lower()
+                    if confirm == 'y':
+                        step_name = input(f"  Name for Step {step_num} (e.g. 'I', 'love', 'you'): ").strip()
+                        if step_name:
+                            angles_to_add["_name"] = step_name
+                        current_sequence_buffer.append(angles_to_add)
+                        label = f"'{step_name}'" if step_name else f"Step {step_num}"
+                        print(f"\n[OK] {label} added! Sequence buffer: {len(current_sequence_buffer)} gesture(s).")
+                        print("     Press [1] to add the next step, or [0] to finish and save.")
+                        break
+                    elif confirm == 'n':
+                        print("  [CANCELLED] Step discarded.")
+                        break
+                    else:
+                        print("  [INVALID] Please type 'y' or 'n'.")
+
+            is_camera_frozen = False
+            print_focus_reminder()
+
+        elif k == ord('0'):
+            # --- Finish and save the full sequence ---
+            if current_sequence_buffer:
+                is_camera_frozen = True
+                print(f"\n{'═'*55}")
+                print(f"  💾  SAVE SEQUENCE ({len(current_sequence_buffer)} gesture(s))")
+                print(f"{'═'*55}")
+                seq_name = input("Enter a name/word/sentence for this sequence: ").strip()
+                if seq_name:
+                    while True:
+                        delay_input = input("Delay between gestures in seconds (e.g. 1.5 or 2): ").strip()
+                        if not delay_input:
+                            print("  [ERROR] Please enter a number (e.g. 1.5 or 2).")
+                            continue
+                        try:
+                            seq_delay = float(delay_input)
+                            if seq_delay < 0.1:
+                                print("  [ERROR] Delay must be at least 0.1 seconds.")
+                                continue
+                            break
+                        except ValueError:
+                            print(f"  [ERROR] '{delay_input}' is not a valid number — try again.")
+                    while True:
+                        confirm = input(f"Save '{seq_name}' with {seq_delay}s delay? (y/n): ").strip().lower()
+                        if confirm == 'y':
+                            save_sequence_to_database(seq_name, current_sequence_buffer, seq_delay)
+                            current_sequence_buffer.clear()
+                            print(f"[OK] Sequence '{seq_name}' saved! Buffer cleared.")
+                            print("     Use [T] or voice to play it back.")
+                            break
+                        elif confirm == 'n':
+                            print("[CANCELLED] Sequence not saved. Buffer kept.")
+                            break
+                        else:
+                            print("[INVALID] Please type 'y' or 'n'.")
+                else:
+                    print("[ERROR] Name cannot be empty. Buffer kept.")
+                is_camera_frozen = False
+            else:
+                print("\n[WARNING] No gestures in buffer! Press [1] to add poses first.")
+            print_focus_reminder()
         elif k == ord('v') or k == ord('V'):
             if VOICE_AVAILABLE:
                 with _voice_lock:
@@ -595,15 +744,22 @@ while True:
                     active_override_gesture = None
                     print("  🔄  Resuming live tracking!")
                 else:
-                    angles = get_gesture_from_database(cmd)
-                    if angles:
-                        print(f"  🤖  Sending '{cmd}' → virtual hand + robotic arm!")
+                    # Check sequences first, then single gestures
+                    sequence, seq_delay = get_sequence_from_database(cmd)
+                    if sequence:
+                        print(f"  🤖  Playing sequence '{cmd}' ({len(sequence)} gestures, {seq_delay}s delay)!")
                         active_override_gesture = cmd
-                        send_to_virtual_hand(angles)
-                        arduino.send_angles(angles)
+                        threading.Thread(target=play_sequence, args=(sequence, seq_delay), daemon=True).start()
                     else:
-                        print(f"  ⚠️   '{cmd}' not in gesture database.")
-                        print("       Press [G] to capture + save a gesture with that name.")
+                        angles = get_gesture_from_database(cmd)
+                        if angles:
+                            print(f"  🤖  Sending '{cmd}' → virtual hand + robotic arm!")
+                            active_override_gesture = cmd
+                            send_to_virtual_hand(angles)
+                            arduino.send_angles(angles)
+                        else:
+                            print(f"  ⚠️   '{cmd}' not in gesture or sequence database.")
+                            print("       Press [G] to capture + save a gesture with that name.")
                 print("═" * 55)
             else:
                 print("\n" + "═" * 55)

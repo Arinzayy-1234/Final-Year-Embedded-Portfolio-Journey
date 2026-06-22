@@ -44,7 +44,7 @@ class RawHandDetector:
     """
 
     def __init__(self, mode=False, max_hands=2,
-                 detection_con=0.35, track_con=0.35):
+                 detection_con=0.5, track_con=0.5):
         self.max_hands = max_hands
         self.detection_con = detection_con
         self.track_con = track_con

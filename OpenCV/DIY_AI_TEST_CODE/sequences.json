@@ -1,0 +1,152 @@
+{
+    "i love you": {
+        "delay": 0.8,
+        "steps": [
+        {
+            "Thumb": 266.9,
+            "Thumb_Spread": -1.1,
+            "Index": 90.0,
+            "Index_Spread": -0.8,
+            "Middle": 283.9,
+            "Middle_Spread": 1.0,
+            "Ring": 290.0,
+            "Ring_Spread": 2.0,
+            "Pinky": 290.0,
+            "Pinky_Spread": 2.3,
+            "Wrist": 284.8,
+            "_name": "I"
+        },
+        {
+            "Thumb": 175.0,
+            "Thumb_Spread": 3.0,
+            "Index": 90.0,
+            "Index_Spread": 1.8,
+            "Middle": 286.6,
+            "Middle_Spread": 0.2,
+            "Ring": 287.7,
+            "Ring_Spread": 0.4,
+            "Pinky": 282.1,
+            "Pinky_Spread": 1.4,
+            "Wrist": 298.5,
+            "_name": "L"
+        },
+        {
+            "Thumb": 275.6,
+            "Thumb_Spread": 3.0,
+            "Index": 271.6,
+            "Index_Spread": 3.0,
+            "Middle": 268.5,
+            "Middle_Spread": 3.0,
+            "Ring": 265.9,
+            "Ring_Spread": 3.0,
+            "Pinky": 261.5,
+            "Pinky_Spread": 3.0,
+            "Wrist": 160.6,
+            "_name": "o"
+        },
+        {
+            "Thumb": 276.5,
+            "Thumb_Spread": -1.9,
+            "Index": 90.9,
+            "Index_Spread": 1.4,
+            "Middle": 100.0,
+            "Middle_Spread": -0.2,
+            "Ring": 271.8,
+            "Ring_Spread": 2.7,
+            "Pinky": 283.8,
+            "Pinky_Spread": 2.7,
+            "Wrist": 284.5,
+            "_name": "v"
+        },
+        {
+            "Thumb": 285.0,
+            "Thumb_Spread": -0.4,
+            "Index": 261.1,
+            "Index_Spread": 1.4,
+            "Middle": 260.4,
+            "Middle_Spread": 1.4,
+            "Ring": 250.0,
+            "Ring_Spread": 1.4,
+            "Pinky": 249.8,
+            "Pinky_Spread": 1.7,
+            "Wrist": 284.8,
+            "_name": "e"
+        },
+        {
+            "Thumb": 175.0,
+            "Thumb_Spread": 3.0,
+            "Index": 290.0,
+            "Index_Spread": 0.3,
+            "Middle": 290.0,
+            "Middle_Spread": 0.4,
+            "Ring": 290.0,
+            "Ring_Spread": 1.9,
+            "Pinky": 85.0,
+            "Pinky_Spread": -0.5,
+            "Wrist": 295.4,
+            "_name": "y"
+        },
+        {
+            "Thumb": 279.5,
+            "Thumb_Spread": 3.0,
+            "Index": 258.9,
+            "Index_Spread": 3.0,
+            "Middle": 257.0,
+            "Middle_Spread": 3.0,
+            "Ring": 249.7,
+            "Ring_Spread": 3.0,
+            "Pinky": 236.1,
+            "Pinky_Spread": 3.0,
+            "Wrist": 120.4,
+            "_name": "o"
+        },
+        {
+            "Thumb": 246.8,
+            "Thumb_Spread": 2.6,
+            "Index": 93.6,
+            "Index_Spread": 3.0,
+            "Middle": 100.0,
+            "Middle_Spread": 3.0,
+            "Ring": 283.1,
+            "Ring_Spread": 1.6,
+            "Pinky": 273.3,
+            "Pinky_Spread": 3.0,
+            "Wrist": 284.2,
+            "_name": "u"
+        }
+        ]
+    },
+    "help me": {
+        "delay": 0.8,
+        "steps": [
+            {
+                "Thumb": 271.9,
+                "Thumb_Spread": -1.7,
+                "Index": 99.6,
+                "Index_Spread": 3.0,
+                "Middle": 103.9,
+                "Middle_Spread": 1.4,
+                "Ring": 100.0,
+                "Ring_Spread": -0.8,
+                "Pinky": 85.0,
+                "Pinky_Spread": -2.8,
+                "Wrist": 279.9,
+                "_name": "help"
+            },
+            {
+                "Thumb": 285.0,
+                "Index": 290.0,
+                "Middle": 290.0,
+                "Ring": 290.0,
+                "Pinky": 290.0,
+                "Wrist": 300.0,
+                "Thumb_Spread": 0.0,
+                "Index_Spread": 0.0,
+                "Middle_Spread": 0.0,
+                "Ring_Spread": 0.0,
+                "Pinky_Spread": 0.0,
+                "_name": "me"
+            }
+        ]
+    }
+}
