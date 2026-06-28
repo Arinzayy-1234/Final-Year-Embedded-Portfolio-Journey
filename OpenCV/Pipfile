@@ -65,6 +65,7 @@ werkzeug = "==3.1.4"
 wrapt = "==2.0.1"
 pyopengl = "*"
 pyopengl-accelerate = "*"
+vosk = "*"
 
 [dev-packages]
 

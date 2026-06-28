@@ -90,19 +90,6 @@
         "Ring_Spread": 0.0,
         "Pinky_Spread": 0.0
     },
-    "i love you": {
-        "Thumb": 175.0,
-        "Thumb_Spread": 3.0,
-        "Index": 90.0,
-        "Index_Spread": 3.0,
-        "Middle": 290.0,
-        "Middle_Spread": 1.8,
-        "Ring": 290.0,
-        "Ring_Spread": 3.0,
-        "Pinky": 111.9,
-        "Pinky_Spread": 2.5,
-        "Wrist": 297.2
-    },
     "y": {
         "Thumb": 175.0,
         "Thumb_Spread": 3.0,
@@ -141,5 +128,96 @@
         "Pinky": 290.0,
         "Pinky_Spread": 1.9,
         "Wrist": 299.8
+    },
+    "b": {
+        "Thumb": 261.4,
+        "Thumb_Spread": -1.7,
+        "Index": 107.1,
+        "Index_Spread": 3.0,
+        "Middle": 113.7,
+        "Middle_Spread": 3.0,
+        "Ring": 121.1,
+        "Ring_Spread": 0.2,
+        "Pinky": 95.0,
+        "Pinky_Spread": -0.8,
+        "Wrist": 1.3
+    },
+    "a": {
+        "Thumb": 261.3,
+        "Thumb_Spread": 0.6,
+        "Index": 290.0,
+        "Index_Spread": 1.0,
+        "Middle": 290.0,
+        "Middle_Spread": 1.4,
+        "Ring": 290.0,
+        "Ring_Spread": 1.8,
+        "Pinky": 290.0,
+        "Pinky_Spread": 2.7,
+        "Wrist": 15.1
+    },
+    "c": {
+        "Thumb": 255.0,
+        "Thumb_Spread": 3.0,
+        "Index": 256.5,
+        "Index_Spread": 3.0,
+        "Middle": 268.8,
+        "Middle_Spread": 3.0,
+        "Ring": 270.4,
+        "Ring_Spread": 3.0,
+        "Pinky": 273.8,
+        "Pinky_Spread": 3.0,
+        "Wrist": 161.4
+    },
+    "d": {
+        "Thumb": 284.3,
+        "Thumb_Spread": -1.3,
+        "Index": 105.0,
+        "Index_Spread": -3.0,
+        "Middle": 290.0,
+        "Middle_Spread": -3.0,
+        "Ring": 290.0,
+        "Ring_Spread": -3.0,
+        "Pinky": 290.0,
+        "Pinky_Spread": -3.0,
+        "Wrist": 149.5
+    },
+    "f": {
+        "Thumb": 285.0,
+        "Thumb_Spread": -2.3,
+        "Index": 289.7,
+        "Index_Spread": -1.1,
+        "Middle": 100.0,
+        "Middle_Spread": 3.0,
+        "Ring": 100.0,
+        "Ring_Spread": 2.6,
+        "Pinky": 113.9,
+        "Pinky_Spread": 0.6,
+        "Wrist": 19.3
+    },
+    "help": {
+        "Thumb": 269.5,
+        "Thumb_Spread": -1.1,
+        "Index": 102.4,
+        "Index_Spread": 3.0,
+        "Middle": 109.0,
+        "Middle_Spread": 2.8,
+        "Ring": 108.2,
+        "Ring_Spread": -0.2,
+        "Pinky": 85.0,
+        "Pinky_Spread": -0.8,
+        "Wrist": 2.3
+    },
+    "me": {
+        "Thumb": 274.4,
+        "Thumb_Spread": -2.4,
+        "Index": 290.0,
+        "Index_Spread": 0.4,
+        "Middle": 290.0,
+        "Middle_Spread": 0.7,
+        "Ring": 287.0,
+        "Ring_Spread": 1.0,
+        "Pinky": 282.1,
+        "Pinky_Spread": 1.8,
+        "Wrist": 4.0
     }
 }

@@ -236,7 +236,7 @@ def _voice_listen_thread():
     global _voice_state, voice_commander
     if voice_commander is None:
         if VOICE_AVAILABLE:
-            voice_commander = VoiceCommander()
+            voice_commander = VoiceCommander(device_index=MIC_DEVICE_INDEX)
             voice_commander.calibrate(duration=0.8)
         else:
             with _voice_lock:
@@ -270,10 +270,40 @@ def poll_voice_result():
             return True, _voice_state['result']
     return False, None
 
-# Create and pre-calibrate voice commander at startup
+# Build voice grammar from all saved gesture + sequence names
+# Vosk will ONLY try to match these exact phrases -> near-perfect accuracy
+def _build_voice_grammar():
+    vocab = []
+    try:
+        with open(GESTURE_DB_PATH, 'r') as f:
+            gestures = json.load(f)
+            vocab.extend(list(gestures.keys()))
+    except Exception:
+        pass
+    try:
+        with open(SEQUENCE_DB_PATH, 'r') as f:
+            sequences = json.load(f)
+            vocab.extend(list(sequences.keys()))
+    except Exception:
+        pass
+    # Deduplicate and sort
+    vocab = sorted(set(v.lower() for v in vocab))
+    if vocab:
+        print(f"[VOICE] Grammar built: {len(vocab)} command(s): {vocab}")
+    return vocab if vocab else None
+
+# Auto-detect wired headset; fall back to system default (None)
+_wired_idx, _wired_name = VoiceCommander.find_wired_mic_index() if VOICE_AVAILABLE else (None, None)
+if _wired_idx is not None:
+    print(f"[VOICE] Wired mic auto-detected [{_wired_idx}]: {_wired_name}")
+    MIC_DEVICE_INDEX = _wired_idx
+else:
+    MIC_DEVICE_INDEX = None  # Windows default (auto-switches)
+
 voice_commander = None
 if VOICE_AVAILABLE:
-    voice_commander = VoiceCommander()
+    _grammar = _build_voice_grammar()
+    voice_commander = VoiceCommander(device_index=MIC_DEVICE_INDEX, grammar=_grammar)
     voice_commander.calibrate(duration=0.8)
 
 # --- MATH & PROCESSING ---
