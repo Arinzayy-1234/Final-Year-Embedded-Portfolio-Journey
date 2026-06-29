@@ -24,20 +24,25 @@ except ImportError as _ve:
     print(f"[WARNING] VOICE MODULE DISABLED: {_ve}")
     print("         Run: pipenv install speechrecognition pyaudio")
 
-# --- HELPER: Auto-detect Arduino COM port ---
+# --- HELPER: Auto-detect ESP32/Arduino COM port ---
 def find_arduino_port():
-    """Scans for Arduino/USB Serial ports. Returns first match or falls back to COM3."""
+    """Scans for ESP32/Arduino USB Serial ports. Prints all found ports for diagnostics."""
     ports = serial.tools.list_ports.comports()
+    print("[SERIAL] Available COM ports:")
     for port in ports:
-        # Common Arduino identifiers on Windows
-        if any(x in port.description.lower() for x in ['arduino', 'usb serial', 'ch340', 'cp2102', 'ftdi', 'usb']):
-            print(f"[ARDUINO] Detected on {port.device}")
+        print(f"         {port.device:8s}  {port.description}")
+    for port in ports:
+        # Common ESP32/Arduino driver chip names on Windows
+        if any(x in port.description.lower() for x in ['cp210', 'ch340', 'ftdi', 'arduino', 'uart', 'usb serial', 'usb']):
+            print(f"[SERIAL] ESP32/Arduino detected on {port.device} ({port.description})")
             return port.device
+    print("[SERIAL] No ESP32/Arduino detected automatically -- falling back to COM5")
     return 'COM5'
 
 # --- INITIALIZATION ---
 init_virtual_hand()  # Launches pygame window
-arduino = ArduinoServoDriver(port=find_arduino_port())
+# debug=False in production. Set True to print every 10th serial message for troubleshooting.
+arduino = ArduinoServoDriver(port=find_arduino_port(), debug=False)
 
 # Mapping landmarks to human-readable names
 # Each finger has: mcp (knuckle), pip (first bend), dip (second bend), tip

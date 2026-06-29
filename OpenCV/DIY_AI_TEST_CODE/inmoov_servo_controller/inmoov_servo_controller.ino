@@ -3,10 +3,11 @@
  * Receives comma-separated angles via Serial and drives 6 servos
  * 
  * Wiring (I2C Connections):
- * - Arduino Uno: SDA (Pin A4) / Mega: SDA (Pin 20) → PCA9685 SDA
- * - Arduino Uno: SCL (Pin A5) / Mega: SCL (Pin 21) → PCA9685 SCL
- * - Arduino 5V → PCA9685 VCC (logic power)
- * - PCA9685 V+ (green terminal) → Buck Converter 6V (servo power)
+ * - Arduino Uno: SDA (Pin A4) / Mega: SDA (Pin 20) -> PCA9685 SDA
+ * - Arduino Uno: SCL (Pin A5) / Mega: SCL (Pin 21) -> PCA9685 SCL
+ * - ESP32: SDA (GPIO 21) / SCL (GPIO 22) -> PCA9685
+ * - Arduino 5V / ESP32 3.3V -> PCA9685 VCC (logic power)
+ * - PCA9685 V+ (green terminal) -> Buck Converter 6V (servo power)
  * - ALL GROUNDS MUST BE CONNECTED TOGETHER
  * 
  * Serial Input Format:
@@ -64,10 +65,17 @@ const float REST_POSITIONS[] = {
 };
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
+
   
-  // Initialize I2C and PCA9685
-  Wire.begin();
+  // Initialize I2C
+  // ESP32: SDA=GPIO21, SCL=GPIO22 (default — matches Wire.begin() on ESP32)
+  // Arduino Uno: SDA=A4, SCL=A5 (Wire.begin() with no args works on both)
+#if defined(ESP32)
+  Wire.begin(21, 22);   // ESP32 explicit I2C pins
+#else
+  Wire.begin();         // Arduino Uno/Mega uses default pins
+#endif
   pwm.begin();
   pwm.setPWMFreq(300);   // JX PDI digital servos support 300 Hz
   
