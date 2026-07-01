@@ -29,6 +29,9 @@ MODEL_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), MODEL_NAME
 SAMPLE_RATE    = 16000   # Hz  — required by all Vosk models
 CHUNK_SIZE     = 4096    # Frames per read
 LISTEN_SECONDS = 5       # Max listening time before giving up
+# Bluetooth earbuds in HFP mode usually only support 8000 Hz.
+# We try 16000 first; fall back to 8000 then upsample for Vosk.
+FALLBACK_RATES = [16000, 8000]
 
 try:
     from vosk import Model, KaldiRecognizer
@@ -112,18 +115,83 @@ class VoiceCommander:
         return found
 
     @staticmethod
-    def find_wired_mic_index():
-        """Auto-detect a plugged-in wired headset mic (Realtek jack)."""
+    def _can_open_device(device_index, rate):
+        """Try to briefly open a mic device. Returns True if it actually works."""
         p = pyaudio.PyAudio()
+        try:
+            stream = p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=rate,
+                input=True,
+                input_device_index=device_index,
+                frames_per_buffer=512,
+            )
+            stream.close()
+            p.terminate()
+            return True
+        except Exception:
+            p.terminate()
+            return False
+
+    @staticmethod
+    def find_preferred_mic_index():
+        """
+        Auto-detect the best available mic that can actually be opened.
+        Priority order:
+          1. Wired headset (Realtek jack) — best quality
+          2. Bluetooth earbuds / AirPods / TWS in HFP headset mode
+          3. Any other working input device
+          4. (None, None) → Windows system default mic (always works)
+
+        Each candidate is TEST-OPENED to verify it really works before returning.
+        Devices listed but not openable (e.g. Bluetooth in A2DP music mode) are skipped.
+        """
+        p = pyaudio.PyAudio()
+        candidates = []   # list of (priority, index, name)
+
+        print("[VOICE] Scanning microphones...")
         for i in range(p.get_device_count()):
             info = p.get_device_info_by_index(i)
-            if info.get('maxInputChannels', 0) > 0:
-                name = info['name'].lower()
-                if 'realtek' in name and 'mic' in name and 'stereo' not in name:
-                    p.terminate()
-                    return i, info['name']
+            if info.get('maxInputChannels', 0) <= 0:
+                continue
+            name = info['name'].lower()
+            full_name = info['name']
+
+            # Priority 1 — Wired Realtek headset mic
+            if 'realtek' in name and 'mic' in name and 'stereo' not in name:
+                candidates.append((1, i, full_name))
+                continue
+
+            # Priority 2 — Bluetooth earbuds / headset (HFP mode has mic)
+            is_bt = 'bthh' in name or any(k in name for k in [
+                'headset', 'hands-free', 'handsfree', 'airpod', 'tws', 'buds'
+            ])
+            if is_bt:
+                candidates.append((2, i, full_name))
+                continue
+
+            # Priority 3 — Any other input device (last resort before system default)
+            candidates.append((3, i, full_name))
+
         p.terminate()
-        return None, None
+
+        # Sort by priority and test each one
+        candidates.sort(key=lambda x: x[0])
+        for priority, idx, name in candidates:
+            # Try 16000Hz first, then 8000Hz (Bluetooth HFP fallback)
+            for rate in FALLBACK_RATES:
+                if VoiceCommander._can_open_device(idx, rate):
+                    label = {1: "Wired mic", 2: "Earbuds/Bluetooth", 3: "Input device"}[priority]
+                    print(f"[VOICE] {label} ready: [{idx}] {name} @ {rate}Hz")
+                    return (idx, name)
+
+        # Nothing worked — let Windows pick the default (None always works)
+        print("[VOICE] No specific mic found — using Windows default mic")
+        return (None, None)
+
+    # Keep old name as alias so nothing breaks
+    find_wired_mic_index = find_preferred_mic_index
 
     # ── Calibration (no-op for Vosk — noise-robust by design) ───────
 
@@ -138,16 +206,49 @@ class VoiceCommander:
 
     # ── Main recognition method ──────────────────────────────────────
 
+
+    @staticmethod
+    def get_device_sample_rate(device_index):
+        """
+        Probe which sample rate the mic actually supports.
+        Tries 16000 Hz first (ideal for Vosk), then 8000 Hz (Bluetooth HFP fallback).
+        Returns the first rate that works, or 16000 as default.
+        """
+        p = pyaudio.PyAudio()
+        for rate in FALLBACK_RATES:
+            try:
+                supported = p.is_format_supported(
+                    rate,
+                    input_device=device_index,
+                    input_channels=1,
+                    input_format=pyaudio.paInt16
+                )
+                if supported:
+                    p.terminate()
+                    return rate
+            except Exception:
+                continue
+        p.terminate()
+        return 16000   # default if probing fails
+
     def listen_and_convert(self, should_calibrate=False):
         """
         Open the mic, listen for up to LISTEN_SECONDS seconds,
         and return the recognized text (or None on failure).
+        Auto-detects sample rate so Bluetooth earbuds (8000Hz HFP) work too.
         """
         if not VOSK_AVAILABLE or self._model is None:
             print("[ERROR] Vosk model not loaded.")
             return None
 
         p = pyaudio.PyAudio()
+
+        # Detect the actual sample rate this device supports
+        device_rate = VoiceCommander.get_device_sample_rate(self.device_index)
+        needs_upsample = (device_rate != SAMPLE_RATE)
+        if needs_upsample:
+            print(f"[MIC] Bluetooth earbuds detected at {device_rate}Hz — upsampling to {SAMPLE_RATE}Hz for Vosk")
+        chunk = CHUNK_SIZE if not needs_upsample else CHUNK_SIZE // 2
 
         # Build recognizer — grammar mode if we have a vocabulary, else free-form
         if self.grammar:
@@ -162,35 +263,40 @@ class VoiceCommander:
             stream = p.open(
                 format=pyaudio.paInt16,
                 channels=1,
-                rate=SAMPLE_RATE,
+                rate=device_rate,              # use actual device rate (8000 or 16000)
                 input=True,
                 input_device_index=self.device_index,
-                frames_per_buffer=CHUNK_SIZE,
+                frames_per_buffer=chunk,
             )
         except Exception as e:
-            print(f"[ERROR] Could not open microphone: {e}")
+            print(f"[ERROR] Could not open microphone [{self.device_index}] at {device_rate}Hz: {e}")
             p.terminate()
             return None
 
         print(f"\n[MIC] LISTENING... Speak clearly! (max {LISTEN_SECONDS}s)")
 
         result_text = ""
-        total_chunks = int(SAMPLE_RATE / CHUNK_SIZE * LISTEN_SECONDS)
+        total_chunks = int(device_rate / chunk * LISTEN_SECONDS)
 
         try:
             for _ in range(total_chunks):
-                data = stream.read(CHUNK_SIZE, exception_on_overflow=False)
+                data = stream.read(chunk, exception_on_overflow=False)
+
+                # Upsample 8000Hz -> 16000Hz for Vosk when using Bluetooth earbuds
+                if needs_upsample:
+                    import numpy as np
+                    pcm = np.frombuffer(data, dtype=np.int16)
+                    pcm = np.repeat(pcm, 2)   # simple 2x linear upsample
+                    data = pcm.astype(np.int16).tobytes()
 
                 if rec.AcceptWaveform(data):
-                    # Full utterance detected (silence after speech)
                     res = json.loads(rec.Result())
                     text = res.get("text", "").strip()
                     if text:
                         result_text = text
-                        break   # Got a clean result — stop early
+                        break
 
             if not result_text:
-                # Check partial/final result at the end of the window
                 final = json.loads(rec.FinalResult())
                 result_text = final.get("text", "").strip()
 
