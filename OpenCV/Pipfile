@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+vosk = "*"
 absl-py = "==2.3.1"
 astunparse = "==1.6.3"
 attrs = "==25.4.0"
@@ -45,6 +46,8 @@ pyaudio = "==0.2.14"
 pycparser = "==2.23"
 pygame = "==2.6.1"
 pygments = "==2.19.2"
+pyopengl = "==3.1.10"
+pyopengl-accelerate = "==3.1.10"
 pyparsing = "==3.2.5"
 pyserial = "==3.5"
 python-dateutil = "==2.9.0.post0"
@@ -63,9 +66,6 @@ typing-extensions = "==4.15.0"
 urllib3 = "==2.6.2"
 werkzeug = "==3.1.4"
 wrapt = "==2.0.1"
-pyopengl = "*"
-pyopengl-accelerate = "*"
-vosk = "*"
 
 [dev-packages]
 
