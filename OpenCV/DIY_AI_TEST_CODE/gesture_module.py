@@ -89,11 +89,11 @@ calibration_is_complete = True  # live tracking starts immediately
 calibration_is_locked = False   # locks auto-updating calibration limits
 
 SERVO_LIMITS = {
-    "Thumb":  {"min": 175, "max": 285},
-    "Index":  {"min": 90,  "max": 290},
-    "Middle": {"min": 100, "max": 290},
-    "Ring":   {"min": 100, "max": 290},
-    "Pinky":  {"min": 85,  "max": 290},
+    "Thumb":  {"min": 175, "max": 290},
+    "Index":  {"min": 30,  "max": 270},
+    "Middle": {"min": 30, "max": 280},
+    "Ring":   {"min": 70, "max": 280},
+    "Pinky":  {"min": 30,  "max": 280},
     "Wrist":  {"min": 0,   "max": 300},
 }
 

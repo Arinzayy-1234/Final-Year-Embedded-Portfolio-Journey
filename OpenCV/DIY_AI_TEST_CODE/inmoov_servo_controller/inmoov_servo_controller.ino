@@ -57,11 +57,11 @@ uint32_t angleToPulse(float angle) {
 // Initial rest positions corresponding to min angles for fingers and center (150) for wrist
 const float REST_POSITIONS[] = {
   175.0,  // CH_THUMB   (channel 0)
-  90.0,   // CH_INDEX   (channel 1)
-  100.0,  // CH_MIDDLE  (channel 2)
-  100.0,  // CH_RING    (channel 3)
-  85.0,   // CH_PINKY   (channel 4)
-  150.0   // CH_WRIST   (channel 5)
+  30.0,   // CH_INDEX   (channel 1)
+  30.0,  // CH_MIDDLE  (channel 2)
+  70.0,  // CH_RING    (channel 3)
+  30.0,   // CH_PINKY   (channel 4)
+  0.0   // CH_WRIST   (channel 5)
 };
 
 void setup() {
@@ -102,7 +102,7 @@ void loop() {
     int count = 0;
     int startIndex = 0;
     
-    for (int i = 0; i <= line.length() && count < 6; i++) {
+    for (unsigned int i = 0; i <= line.length() && count < 6; i++) {
       if (i == line.length() || line.charAt(i) == ',') {
         String part = line.substring(startIndex, i);
         angles[count++] = part.toFloat();
